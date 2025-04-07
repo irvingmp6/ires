@@ -1,6 +1,7 @@
 import json
-import math
+import logging
 import os
+
 import tkinter as tk
 
 from decimal import Decimal
@@ -9,6 +10,7 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
 
 
+logger = logging.getLogger(__name__)
 SETTINGS_FILE = 'settings.json'
 SUPPORTED_IMAGE_FORMATS = [("PNG files", "*.png"), ("GIF files", "*.gif")]
 RECOMMENDED_LOGO_SIZE = (300, 150)  # Width x Height in pixels
@@ -19,13 +21,18 @@ MAX_LOGO_HEIGHT = 200
 class InvoiceApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Invoice Applications")
+        self.root.title("Invoice Reconsiliation System by Eldelatec")
 
         # **Removed Fixed Window Size**
         # Allow resizing in all directions
         self.root.resizable(True, True)
 
         self.settings = self.load_settings()
+        if self.settings.get("enable_logging", False):
+            logging.basicConfig(level=logging.DEBUG,
+                               format="%(asctime)s - %(levelname)s -  %(funcName)s - %(lineno)d - %(message)s")
+            logger.debug("Logging is enabled.")
+    
         self.logo_image = None # To prevent garbage collection
 
         # Create a container frame to hold all other frames
@@ -67,6 +74,7 @@ class InvoiceApp:
             return {}
 
     def save_settings(self):
+        logging.debug(f"settings: %s", SETTINGS_FILE)
         try:
             with open(SETTINGS_FILE, 'w') as f:
                 json.dump(self.settings, f, indent=4)
@@ -105,7 +113,7 @@ class MainFrame(ttk.Frame):
         self.logo_label.pack(pady=10)
 
         # Title
-        title = ttk.Label(self, text="Invoice Application", font=("Helvetica", 24, "bold"))
+        title = ttk.Label(self, text="IReS", font=("Helvetica", 24, "bold"))
         title.pack(pady=10)
 
         # Buttons Frame
@@ -327,7 +335,6 @@ class CreateInvoiceFrame(ttk.Frame):
 
     def update_total_amount(self):
         total = Decimal("0")
-        print(total)
         for child in self.tree.get_children():
             item_total = Decimal(self.tree.item(child)['values'][3])
             total += item_total
@@ -550,6 +557,11 @@ class SettingsWindow(tk.Toplevel):
         browse_button = ttk.Button(logo_frame, text="Browse...", command=self.browse_logo, style='Large.TButton')
         browse_button.grid(row=0, column=2, pady=10, padx=10)
 
+        # Logging Toggle
+        self.logging_var = tk.BooleanVar(value=self.controller.settings.get("enable_logging", False))
+        self.logging_checkbox = ttk.Checkbutton(logo_frame, text="Enable Logging", variable=self.logging_var)
+        self.logging_checkbox.grid(row=2, column=0, columnspan=3, pady=5)
+    
         # Optional: Display current logo thumnail
         self.thumbnail_label = ttk.Label(logo_frame)
         self.thumbnail_label.grid(row=1, column=0, columnspan=3, pady=10)
@@ -567,12 +579,16 @@ class SettingsWindow(tk.Toplevel):
         cancel_btn.pack(side=tk.LEFT, padx=10)
 
     def browse_logo(self):
+        logger.debug("Current logo: %s", self.controller.settings['logo_path'])
         file_path = filedialog.askopenfilename(
             title="Select Logo",
             filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.gif;*.bmp")]
         )
         if file_path:
+            logger.debug("New logo: %s", file_path)
             self.controller.settings['logo_path'] = file_path
+            self.logo_path_var = tk.StringVar(value=self.controller.settings.get('logo_path', ''))
+            logger.debug("controller settings updated with: %s", self.controller.settings['logo_path'])
             resized_logo = self.resize_image(file_path)
             if resized_logo:
                 self.logo_image = resized_logo
@@ -598,14 +614,6 @@ class SettingsWindow(tk.Toplevel):
     def resize_image(self, image_path, max_width=300, max_height=150):
         try:
             image = Image.open(image_path)
-            # Check dimensions
-            if image.size != RECOMMENDED_LOGO_SIZE:
-                messagebox.showwarning(
-                    "Logo Size Warning",
-                    f"Logo should be exactly {RECOMMENDED_LOGO_SIZE[0]}x{RECOMMENDED_LOGO_SIZE[1]} pixels.\n"
-                    "Please resize before uploading."
-                )
-                return
             image.thumbnail((max_width, max_height), Image.LANCZOS)
             return ImageTk.PhotoImage(image)
         except Exception as e:
@@ -613,7 +621,9 @@ class SettingsWindow(tk.Toplevel):
             return None
 
     def save_settings(self):
+        logger.debug("Saving ssettings...")
         logo_path = self.logo_path_var.get()
+        logger.debug("logo_path in self.logo_path_var is: %s", self.logo_path_var.get())
         if logo_path and not os.path.exists(logo_path):
             messagebox.showerror("Error", "Selected logo file does not exist.")
             return
@@ -630,6 +640,9 @@ class SettingsWindow(tk.Toplevel):
             # If no logo is selected, remove the logo_path from settings
             self.controller.settings.pop('logo_path', None)
 
+        
+        self.controller.settings['enable_logging'] = self.logging_var.get()
+    
         self.controller.save_settings()
         self.controller.refresh_main_frame()
         self.destroy()
