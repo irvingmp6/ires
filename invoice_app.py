@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from collections import namedtuple
 
 import tkinter as tk
 
@@ -16,7 +17,7 @@ SUPPORTED_IMAGE_FORMATS = [("PNG files", "*.png"), ("GIF files", "*.gif")]
 RECOMMENDED_LOGO_SIZE = (300, 150)  # Width x Height in pixels
 MAX_LOGO_WIDTH = 200
 MAX_LOGO_HEIGHT = 200
-
+FONT_STYLE = namedtuple('FontFamily',['header_1', 'body'])(header_1='Segoe UI', body='Segoe UI')
 
 class InvoiceApp:
     def __init__(self, root):
@@ -59,7 +60,7 @@ class InvoiceApp:
         # Ensure a default theme is set for better stlying consitency
         style.theme_use('clam') # Options include 'default', 'clam', 'alt', 'classic', 'etc'.
         # Define a large button style
-        style.configure('Large.TButton', font=('Helvetica', 16, 'bold'), padding=10)
+        style.configure('Large.TButton', font=(FONT_STYLE.body, 16, 'bold'), padding=10)
 
     def load_settings(self):
         if os.path.exists(SETTINGS_FILE):
@@ -113,7 +114,7 @@ class MainFrame(ttk.Frame):
         self.logo_label.pack(pady=10)
 
         # Title
-        title = ttk.Label(self, text="IReS", font=("Helvetica", 24, "bold"))
+        title = ttk.Label(self, text="IReS", font=(FONT_STYLE.body, 24, "bold"))
         title.pack(pady=10)
 
         # Buttons Frame
@@ -171,7 +172,7 @@ class CreateInvoiceFrame(ttk.Frame):
         self.controller = controller
 
         # Title
-        title = ttk.Label(self, text="Create New Invoice", font=("Helvetica", 20, "bold"))
+        title = ttk.Label(self, text="Create New Invoice", font=(FONT_STYLE.body, 20, "bold"))
         title.grid(row=0, column=0, columnspan=4, pady=10, sticky="w")
 
         # Define labels and entry fields
@@ -187,7 +188,7 @@ class CreateInvoiceFrame(ttk.Frame):
             self.entries[label_text] = entry
 
         # Line Items Section
-        line_items_label = ttk.Label(self, text="Line Items:", font=("Helvetica", 14, "bold"))
+        line_items_label = ttk.Label(self, text="Line Items:", font=(FONT_STYLE.body, 14, "bold"))
         line_items_label.grid(row=idx + 1, column=0, pady=(20, 10), sticky="w")
 
         # Treeview for Line Items
@@ -218,7 +219,7 @@ class CreateInvoiceFrame(ttk.Frame):
         total_label = ttk.Label(self, text="Total Amount: ")
         total_label.grid(row=idx + 4, column=2, pady=10, padx=5, sticky="e")
 
-        total_amount_label = ttk.Label(self, textvariable=self.total_var, font=("Helvetica", 12, "bold"))
+        total_amount_label = ttk.Label(self, textvariable=self.total_var, font=(FONT_STYLE.body, 12, "bold"))
         total_amount_label.grid(row=idx + 4, column=3, pady=10, padx=5, sticky="w")
 
         # Buttons Frame
