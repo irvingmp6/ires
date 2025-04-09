@@ -1,0 +1,66 @@
+# ──────────────
+# Python Basics
+# ──────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Byte-compiled / package-related
+*.egg-info/
+*.eggs/
+*.dist-info/
+build/
+dist/
+*.spec
+*.manifest
+*.dll
+*.lib
+*.obj
+*.exe
+
+# ──────────────
+# Virtual Environments
+# ──────────────
+.venv/
+venv/
+env/
+iresEnv/
+
+# ──────────────
+# Logs & Reports
+# ──────────────
+*.log
+*.pot
+*.coverage
+coverage.xml
+*.tmp
+*.bak
+
+# ──────────────
+# Runtime Artifacts (user data)
+# ──────────────
+# NOTE: actual runtime files are stored via appdirs (per-user)
+# These should never be committed
+# Example: C:/Users/<User>/AppData/Local/Opulatec/IReS
+*.db
+*.json
+*.pdf
+_temp_*.png
+
+# ──────────────
+# Editor/IDE Files
+# ──────────────
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+Thumbs.db
+
+# ──────────────
+# Project-Specific Optional
+# ──────────────
+/data/                 # If local data folder exists for dev/testing
+/test_output/
