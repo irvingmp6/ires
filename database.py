@@ -1,13 +1,10 @@
 import sqlite3
 import os
-
 from utils import DB_PATH
-DB_FILE = DB_PATH
-
 
 class Database:
     def __init__(self):
-        self.conn = sqlite3.connect(DB_FILE)
+        self.conn = sqlite3.connect(DB_PATH)
         self.create_tables()
 
     def create_tables(self):
@@ -17,8 +14,13 @@ class Database:
         CREATE TABLE IF NOT EXISTS customers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            email TEXT,
-            address TEXT
+            contact_email TEXT,
+            contact_street_address TEXT,
+            primary_contact_name TEXT,
+            secondary_contact_name TEXT,
+            primary_contact_phone TEXT,
+            secondary_contact_phone TEXT,
+            refund_full_name TEXT
         )""")
 
         cursor.execute("""
@@ -28,8 +30,8 @@ class Database:
             date TEXT,
             customer_id INTEGER,
             total_amount TEXT,
-            status TEXT DEFAULT 'Active',
             pdf_path TEXT,
+            status TEXT DEFAULT 'Active',
             FOREIGN KEY (customer_id) REFERENCES customers(id)
         )""")
 
@@ -46,12 +48,34 @@ class Database:
 
         self.conn.commit()
 
+    def get_all_clients(self):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT id, name, contact_email, contact_street_address, primary_contact_name,
+                   secondary_contact_name, primary_contact_phone, secondary_contact_phone, refund_full_name
+            FROM customers ORDER BY name ASC
+        """)
+        return cursor.fetchall()
+
+    def update_client(self, client_id, name, contact_email, contact_address, primary_contact,
+                      secondary_contact_name, primary_contact_phone, secondary_contact_phone, refund_name):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE customers
+            SET name = ?, contact_email = ?, contact_street_address = ?, primary_contact_name = ?, 
+                secondary_contact_name = ?, primary_contact_phone = ?, secondary_contact_phone = ?, 
+                refund_full_name = ?
+            WHERE id = ?
+        """, (name, contact_email, contact_address, primary_contact, secondary_contact_name,
+               primary_contact_phone, secondary_contact_phone, refund_name, client_id))
+        self.conn.commit()
+
     def save_invoice(self, invoice_data, line_items, pdf_path):
         cursor = self.conn.cursor()
 
         # Insert or find customer
         cursor.execute("""
-            SELECT id FROM customers WHERE name = ? AND email = ?""",
+            SELECT id FROM customers WHERE name = ? AND contact_street_address = ?""",
             (invoice_data["Client Name"], invoice_data["Client Email"])
         )
         result = cursor.fetchone()
@@ -59,7 +83,7 @@ class Database:
             customer_id = result[0]
         else:
             cursor.execute("""
-                INSERT INTO customers (name, email, address) VALUES (?, ?, ?)""",
+                INSERT INTO customers (name, contact_email, contact_street_address) VALUES (?, ?, ?)""",
                 (
                     invoice_data["Client Name"],
                     invoice_data["Client Email"],

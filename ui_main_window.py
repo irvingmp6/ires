@@ -1,6 +1,6 @@
+
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QPushButton,
-    QLabel, QStackedWidget, QMessageBox
+    QMainWindow, QWidget, QVBoxLayout, QPushButton, QLabel, QStackedWidget, QMessageBox
 )
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
@@ -10,14 +10,15 @@ import json
 from utils import resize_image, SETTINGS_FILE, RECOMMENDED_LOGO_SIZE
 from ui_create_invoice import CreateInvoiceWidget
 from ui_settings import SettingsDialog
+from ui_find_existing_clients import FindExistingClientWidget
+from ui_select_client_type import SelectClientTypeWidget
+from ui_view_client_profile import ViewClientProfileWidget
 from ui_find_invoice import FindInvoiceWidget
-
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Invoice Reconciliation System by Eldelatec")
+        self.setWindowTitle("Invoice Reconciliation System by Opulatec")
         self.resize(1000, 700)
 
         self.settings = self.load_settings()
@@ -35,35 +36,38 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
 
-        # Views
+        # Instantiate all views
         self.main_menu = self.create_main_menu_view()
+        self.select_client_type_page = SelectClientTypeWidget(self)
+        self.find_existing_client_page = FindExistingClientWidget(self)
         self.invoice_page = CreateInvoiceWidget(self)
-        self.stack.addWidget(self.invoice_page)
+        self.find_invoice_page = FindInvoiceWidget(self)
+        self.view_existing_client_page = ViewClientProfileWidget(self)
 
-
-        self.stack.addWidget(self.main_menu)       # index 0
-        self.stack.addWidget(self.invoice_page)    # index 1
+        # Add to stack
+        self.stack.addWidget(self.main_menu)                  # index 0
+        self.stack.addWidget(self.select_client_type_page)   # index 1
+        self.stack.addWidget(self.find_existing_client_page) # index 2
+        self.stack.addWidget(self.invoice_page)              # index 3
+        self.stack.addWidget(self.find_invoice_page)         # index 4
+        self.stack.addWidget(self.view_existing_client_page)              # index 5
 
         self.display_logo()
         self.stack.setCurrentIndex(0)
-
-        self.find_invoice_page = FindInvoiceWidget(self)
-        self.stack.addWidget(self.find_invoice_page)
-
 
     def create_main_menu_view(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        title = QLabel("IReS — Your Invoice Reconciliation System")
+        title = QLabel("IReS — Your Invoice and Reconciliation Specialist")
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         buttons = [
-            ("Create New Invoice", self.goto_invoice_view),
+            ("Create New Invoice", self.goto_client_type_selector),
             ("Find Invoice", lambda: self.stack.setCurrentWidget(self.find_invoice_page)),
-            ("Create Report", self.not_implemented),
+            ("Manage Clients", lambda: self.stack.setCurrentWidget(self.view_existing_client_page)),
             ("Settings", self.open_settings)
         ]
 
@@ -75,6 +79,9 @@ class MainWindow(QMainWindow):
             layout.addWidget(btn)
 
         return widget
+
+    def goto_client_type_selector(self):
+        self.stack.setCurrentWidget(self.select_client_type_page)
 
     def display_logo(self):
         logo_path = self.settings.get("logo_path")
@@ -109,10 +116,3 @@ class MainWindow(QMainWindow):
             self.settings = dlg.settings
             self.save_settings()
             self.display_logo()
-
-    def goto_invoice_view(self):
-        self.invoice_page.restore_cached_data()
-        self.stack.setCurrentWidget(self.invoice_page)
-
-    def not_implemented(self):
-        QMessageBox.information(self, "Info", "This feature is not yet implemented.")
