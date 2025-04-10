@@ -37,9 +37,9 @@ class CreateInvoiceWidget(QWidget):
         # === Invoice Fields ===
         self.invoice_fields['Invoice Number'] = self._add_labeled_input("Invoice Number:", layout)
         self.invoice_fields['Date'] = self._add_labeled_date("Date:", layout)
-        self.invoice_fields['Client Name'] = self._add_labeled_input("Client Name:", layout)
-        self.invoice_fields['Client Email'] = self._add_labeled_input("Client Email:", layout)
-        self.invoice_fields['Client Address'] = self._add_labeled_textarea("Client Address:", layout)
+        self.invoice_fields['Business Name'] = self._add_labeled_input("Business Name:", layout)
+        self.invoice_fields['Contact Email'] = self._add_labeled_input("Contact Email:", layout)
+        self.invoice_fields['Street Address'] = self._add_labeled_textarea("Street Address:", layout)
 
         # === Line Items Table ===
         self.table = QTableWidget(0, 4)
@@ -70,8 +70,13 @@ class CreateInvoiceWidget(QWidget):
         total_layout.addWidget(self.total_label)
         layout.addLayout(total_layout)
 
+        # === Create PDF Button ===
+        pdf_btn = QPushButton("🖨️ Create PDF")
+        pdf_btn.clicked.connect(self.create_pdf)
+        layout.addWidget(pdf_btn)
+
         # === Save Button ===
-        save_btn = QPushButton("💾 Save Invoice")
+        save_btn = QPushButton("💾 Save for Later")
         save_btn.clicked.connect(self.save_invoice)
         layout.addWidget(save_btn)
 
@@ -80,10 +85,6 @@ class CreateInvoiceWidget(QWidget):
         cancel_btn.clicked.connect(self.cancel_invoice)
         layout.addWidget(cancel_btn)
 
-        # === Create PDF Button ===
-        pdf_btn = QPushButton("🖨️ Create PDF")
-        pdf_btn.clicked.connect(self.create_pdf)
-        layout.addWidget(pdf_btn)
 
     def _add_labeled_input(self, label_text, layout):
         label = QLabel(label_text)
@@ -156,16 +157,16 @@ class CreateInvoiceWidget(QWidget):
         invoice = {
             "Invoice Number": self.invoice_fields["Invoice Number"].text(),
             "Date": self.invoice_fields["Date"].date().toString("yyyy-MM-dd"),
-            "Client Name": self.invoice_fields["Client Name"].text(),
-            "Client Email": self.invoice_fields["Client Email"].text(),
-            "Client Address": self.invoice_fields["Client Address"].toPlainText(),
+            "Business Name": self.invoice_fields["Business Name"].text(),
+            "Contact Email": self.invoice_fields["Contact Email"].text(),
+            "Street Address": self.invoice_fields["Street Address"].toPlainText(),
             "Line Items": [],
             "Total Amount": self.total_label.text().replace("Total: $", "")
         }
 
         # Validate
-        if not invoice["Invoice Number"] or not invoice["Client Name"]:
-            QMessageBox.warning(self, "Validation Error", "Invoice Number and Client Name are required.")
+        if not invoice["Invoice Number"] or not invoice["Business Name"]:
+            QMessageBox.warning(self, "Validation Error", "Invoice Number and Business Name are required.")
             return
 
         # Extract line items
@@ -192,15 +193,13 @@ class CreateInvoiceWidget(QWidget):
         self.cache_invoice_data()
         self.main_window.stack.setCurrentIndex(0)
 
-
-
     def cache_invoice_data(self):
         self._cached_data = {
             "Invoice Number": self.invoice_fields["Invoice Number"].text(),
             "Date": self.invoice_fields["Date"].date(),
-            "Client Name": self.invoice_fields["Client Name"].text(),
-            "Client Email": self.invoice_fields["Client Email"].text(),
-            "Client Address": self.invoice_fields["Client Address"].toPlainText(),
+            "Business Name": self.invoice_fields["Business Name"].text(),
+            "Contact Email": self.invoice_fields["Contact Email"].text(),
+            "Street Address": self.invoice_fields["Street Address"].toPlainText(),
             "Line Items": []
         }
 
@@ -219,9 +218,9 @@ class CreateInvoiceWidget(QWidget):
         data = self._cached_data
         self.invoice_fields["Invoice Number"].setText(data["Invoice Number"])
         self.invoice_fields["Date"].setDate(data["Date"])
-        self.invoice_fields["Client Name"].setText(data["Client Name"])
-        self.invoice_fields["Client Email"].setText(data["Client Email"])
-        self.invoice_fields["Client Address"].setPlainText(data["Client Address"])
+        self.invoice_fields["Business Name"].setText(data["Business Name"])
+        self.invoice_fields["Contact Email"].setText(data["Contact Email"])
+        self.invoice_fields["Street Address"].setPlainText(data["Street Address"])
 
         self.table.setRowCount(0)
         for item in data["Line Items"]:
@@ -232,6 +231,17 @@ class CreateInvoiceWidget(QWidget):
             self.table.cellWidget(row, 2).setValue(item["Unit Price"])
 
         self.update_total()
+
+    def clear_fields(self):
+        for key, widget in self.invoice_fields.items():
+            if isinstance(widget, QTextEdit):
+                widget.clear()
+            elif isinstance(widget, QLineEdit):
+                widget.setText("")
+            elif key == "Date":
+                widget.setDate(QDate.currentDate())
+        self.table.setRowCount(0)
+        self.total_label.setText("Total: $0.00")
 
     def create_pdf(self):
         invoice_number = self.invoice_fields["Invoice Number"].text() or "unnamed"
@@ -260,9 +270,9 @@ class CreateInvoiceWidget(QWidget):
         fields = [
             ("Invoice Number", self.invoice_fields["Invoice Number"].text()),
             ("Date", self.invoice_fields["Date"].date().toString("yyyy-MM-dd")),
-            ("Client Name", self.invoice_fields["Client Name"].text()),
-            ("Client Email", self.invoice_fields["Client Email"].text()),
-            ("Client Address", self.invoice_fields["Client Address"].toPlainText()),
+            ("Business Name", self.invoice_fields["Business Name"].text()),
+            ("Contact Email", self.invoice_fields["Contact Email"].text()),
+            ("Street Address", self.invoice_fields["Street Address"].toPlainText()),
         ]
         for label, value in fields:
             c.drawString(40, y, f"{label}: {value}")
@@ -308,9 +318,9 @@ class CreateInvoiceWidget(QWidget):
         invoice = {
             "Invoice Number": self.invoice_fields["Invoice Number"].text(),
             "Date": self.invoice_fields["Date"].date().toString("yyyy-MM-dd"),
-            "Client Name": self.invoice_fields["Client Name"].text(),
-            "Client Email": self.invoice_fields["Client Email"].text(),
-            "Client Address": self.invoice_fields["Client Address"].toPlainText(),
+            "Business Name": self.invoice_fields["Business Name"].text(),
+            "Contact Email": self.invoice_fields["Contact Email"].text(),
+            "Street Address": self.invoice_fields["Street Address"].toPlainText(),
             "Line Items": [],
             "Total Amount": self.total_label.text().replace("Total: $", "")
         }

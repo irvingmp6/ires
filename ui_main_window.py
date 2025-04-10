@@ -12,7 +12,7 @@ from ui_create_invoice import CreateInvoiceWidget
 from ui_settings import SettingsDialog
 from ui_find_existing_clients import FindExistingClientWidget
 from ui_select_client_type import SelectClientTypeWidget
-from ui_view_client_profile import ViewClientProfileWidget
+from ui_client_manager import ClientManagerWidget
 from ui_find_invoice import FindInvoiceWidget
 
 class MainWindow(QMainWindow):
@@ -42,7 +42,7 @@ class MainWindow(QMainWindow):
         self.find_existing_client_page = FindExistingClientWidget(self)
         self.invoice_page = CreateInvoiceWidget(self)
         self.find_invoice_page = FindInvoiceWidget(self)
-        self.view_existing_client_page = ViewClientProfileWidget(self)
+        self.view_existing_client_page = ClientManagerWidget(self)
 
         # Add to stack
         self.stack.addWidget(self.main_menu)                  # index 0

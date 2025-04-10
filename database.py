@@ -13,14 +13,13 @@ class Database:
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS customers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
+            business_name TEXT NOT NULL,
             contact_email TEXT,
-            contact_street_address TEXT,
+            street_address TEXT,
             primary_contact_name TEXT,
             secondary_contact_name TEXT,
             primary_contact_phone TEXT,
-            secondary_contact_phone TEXT,
-            refund_full_name TEXT
+            secondary_contact_phone TEXT
         )""")
 
         cursor.execute("""
@@ -51,23 +50,22 @@ class Database:
     def get_all_clients(self):
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT id, name, contact_email, contact_street_address, primary_contact_name,
-                   secondary_contact_name, primary_contact_phone, secondary_contact_phone, refund_full_name
-            FROM customers ORDER BY name ASC
+            SELECT id, business_name, contact_email, street_address, primary_contact_name,
+                   primary_contact_phone, secondary_contact_name, secondary_contact_phone
+            FROM customers ORDER BY business_name ASC
         """)
         return cursor.fetchall()
 
-    def update_client(self, client_id, name, contact_email, contact_address, primary_contact,
-                      secondary_contact_name, primary_contact_phone, secondary_contact_phone, refund_name):
+    def update_client(self, client_id, business_name, contact_email, contact_address, primary_contact,
+                      secondary_contact_name, primary_contact_phone, secondary_contact_phone):
         cursor = self.conn.cursor()
         cursor.execute("""
             UPDATE customers
-            SET name = ?, contact_email = ?, contact_street_address = ?, primary_contact_name = ?, 
-                secondary_contact_name = ?, primary_contact_phone = ?, secondary_contact_phone = ?, 
-                refund_full_name = ?
+            SET business_name = ?, contact_email = ?, street_address = ?, primary_contact_name = ?, 
+                secondary_contact_name = ?, primary_contact_phone = ?, secondary_contact_phone = ?
             WHERE id = ?
-        """, (name, contact_email, contact_address, primary_contact, secondary_contact_name,
-               primary_contact_phone, secondary_contact_phone, refund_name, client_id))
+        """, (business_name, contact_email, contact_address, primary_contact, secondary_contact_name,
+               primary_contact_phone, secondary_contact_phone, client_id))
         self.conn.commit()
 
     def save_invoice(self, invoice_data, line_items, pdf_path):
@@ -75,19 +73,18 @@ class Database:
 
         # Insert or find customer
         cursor.execute("""
-            SELECT id FROM customers WHERE name = ? AND contact_street_address = ?""",
-            (invoice_data["Client Name"], invoice_data["Client Email"])
-        )
+            SELECT id FROM customers WHERE business_name = ? AND street_address = ?""",
+            (invoice_data["Business Name"], invoice_data["Contact Email"]))
         result = cursor.fetchone()
         if result:
             customer_id = result[0]
         else:
             cursor.execute("""
-                INSERT INTO customers (name, contact_email, contact_street_address) VALUES (?, ?, ?)""",
+                INSERT INTO customers (business_name, contact_email, street_address) VALUES (?, ?, ?)""",
                 (
-                    invoice_data["Client Name"],
-                    invoice_data["Client Email"],
-                    invoice_data["Client Address"]
+                    invoice_data["Business Name"],
+                    invoice_data["Contact Email"],
+                    invoice_data["Street Address"]
                 )
             )
             customer_id = cursor.lastrowid
@@ -130,7 +127,7 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT i.id, i.invoice_number, i.date, i.total_amount, i.status,
-                c.name, c.email, c.address
+                c.business_name, c.contact_email, c.street_address
             FROM invoices i
             JOIN customers c ON i.customer_id = c.id
             WHERE i.invoice_number = ?
@@ -145,9 +142,9 @@ class Database:
             "Date": result[2],
             "Total Amount": result[3],
             "Status": result[4],
-            "Client Name": result[5],
-            "Client Email": result[6],
-            "Client Address": result[7],
+            "Business Name": result[5],
+            "Contact Email": result[6],
+            "Street Address": result[7],
             "Line Items": []
         }
 
