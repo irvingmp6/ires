@@ -27,7 +27,7 @@ class FindInvoiceWidget(QWidget):
         input_layout = QHBoxLayout()
         self.invoice_id_input = QLineEdit()
         self.invoice_id_input.setPlaceholderText("Enter Invoice Number")
-        find_btn = QPushButton("Find")
+        find_btn = QPushButton("🔍 Search")
         cancel_btn = QPushButton("Cancel")
 
         find_btn.clicked.connect(self.find_invoice)

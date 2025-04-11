@@ -17,9 +17,10 @@ class Database:
             contact_email TEXT,
             street_address TEXT,
             primary_contact_name TEXT,
-            secondary_contact_name TEXT,
             primary_contact_phone TEXT,
-            secondary_contact_phone TEXT
+            secondary_contact_name TEXT,
+            secondary_contact_phone TEXT,
+            default_term_code TEXT
         )""")
 
         cursor.execute("""
@@ -29,8 +30,8 @@ class Database:
             date TEXT,
             customer_id INTEGER,
             total_amount TEXT,
-            pdf_path TEXT,
             status TEXT DEFAULT 'Active',
+            term_code TEXT,
             FOREIGN KEY (customer_id) REFERENCES customers(id)
         )""")
 
@@ -45,30 +46,68 @@ class Database:
             FOREIGN KEY (invoice_id) REFERENCES invoices(id)
         )""")
 
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS terms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            term_code TEXT UNIQUE,
+            term_verbiage TEXT
+        )""")
+
         self.conn.commit()
+        self._initialize_terms()
+
+    def _initialize_terms(self):
+        cursor = self.conn.cursor()
+        terms = [
+            ("IMMEDIATE", "Payment is due immediately upon receipt."),
+            ("NET 7", "Payment is due within 7 days."),
+            ("NET 15", "Payment is due within 15 days."),
+            ("NET 30", "Payment is due within 30 days."),
+            ("NET 45", "Payment is due within 45 days."),
+            ("NET 60", "Payment is due within 60 days."),
+            ("NET 90", "Payment is due within 90 days."),
+            ("DUE ON RECEIPT", "Payment is due upon receipt of invoice."),
+            ("EOM", "Payment is due at the end of the month."),
+            ("PIA", "Payment in advance is required.")
+        ]
+        for code, verbiage in terms:
+            cursor.execute("""
+                INSERT OR IGNORE INTO terms (term_code, term_verbiage) VALUES (?, ?)
+            """, (code, verbiage))
+        self.conn.commit()
+
+    def get_terms(self):
+        cursor = self.conn.cursor()
+        cursor.execute("""SELECT term_code FROM terms ORDER BY term_code""")
+        return [row[0] for row in cursor.fetchall()]
+
 
     def get_all_clients(self):
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT id, business_name, contact_email, street_address, primary_contact_name,
-                   primary_contact_phone, secondary_contact_name, secondary_contact_phone
+                   primary_contact_phone, secondary_contact_name, secondary_contact_phone,
+                   default_term_code
             FROM customers ORDER BY business_name ASC
         """)
         return cursor.fetchall()
 
     def update_client(self, client_id, business_name, contact_email, contact_address, primary_contact,
-                      secondary_contact_name, primary_contact_phone, secondary_contact_phone):
+                      secondary_contact_name, primary_contact_phone, secondary_contact_phone, 
+                      default_term_code):
         cursor = self.conn.cursor()
+        print(client_id)
         cursor.execute("""
             UPDATE customers
             SET business_name = ?, contact_email = ?, street_address = ?, primary_contact_name = ?, 
-                secondary_contact_name = ?, primary_contact_phone = ?, secondary_contact_phone = ?
+                secondary_contact_name = ?, primary_contact_phone = ?, secondary_contact_phone = ?,
+                default_term_code = ?
             WHERE id = ?
         """, (business_name, contact_email, contact_address, primary_contact, secondary_contact_name,
-               primary_contact_phone, secondary_contact_phone, client_id))
+               primary_contact_phone, secondary_contact_phone, client_id, default_term_code))
         self.conn.commit()
 
-    def save_invoice(self, invoice_data, line_items, pdf_path):
+    def save_invoice(self, invoice_data, line_items):
         cursor = self.conn.cursor()
 
         # Insert or find customer
@@ -92,14 +131,13 @@ class Database:
         # Insert invoice
         cursor.execute("""
             INSERT OR REPLACE INTO invoices (
-                invoice_number, date, customer_id, total_amount, pdf_path
-            ) VALUES (?, ?, ?, ?, ?)""",
+                invoice_number, date, customer_id, total_amount
+            ) VALUES (?, ?, ?, ?)""",
             (
                 invoice_data["Invoice Number"],
-                invoice_data["Date"],
+                invoice_data["Invoice Date"],
                 customer_id,
-                invoice_data["Total Amount"],
-                pdf_path
+                invoice_data["Total Amount"]
             )
         )
         invoice_id = cursor.lastrowid

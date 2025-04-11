@@ -18,7 +18,7 @@ from ui_find_invoice import FindInvoiceWidget
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Invoice Reconciliation System by Opulatec")
+        self.setWindowTitle("IReS power by Opulatec")
         self.resize(1000, 700)
 
         self.settings = self.load_settings()
@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        title = QLabel("IReS — Your Invoice and Reconciliation Specialist")
+        title = QLabel("Main Menu")
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)

@@ -1,10 +1,10 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QPushButton, QHBoxLayout, QLineEdit, QTextEdit, QMessageBox
+    QPushButton, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QRegularExpressionValidator
+from PyQt6.QtCore import Qt, QRegularExpression
 from database import Database
-
 
 class ClientManagerWidget(QWidget):
     def __init__(self, main_window):
@@ -38,20 +38,28 @@ class ClientManagerWidget(QWidget):
         self.business_name_input = QLineEdit()
         self.primary_email_input = QLineEdit()
         self.contact_address_input = QTextEdit()
-        self.contact_address_input.setMaximumHeight(60)
         self.primary_contact_input = QLineEdit()
         self.primary_contact_phone_input = QLineEdit()
         self.secondary_contact_name_input = QLineEdit()
         self.secondary_contact_phone_input = QLineEdit()
+        self.term_dropdown = QComboBox()
+        self.term_dropdown.addItems(self.db.get_terms())
+
+        email_validator = QRegularExpressionValidator(QRegularExpression(r"^[\w\.-]+@[\w\.-]+\.\w+$"))
+        phone_validator = QRegularExpressionValidator(QRegularExpression(r"^\+?[0-9\-\s]{7,15}$"))
+        self.primary_email_input.setValidator(email_validator)
+        self.primary_contact_phone_input.setValidator(phone_validator)
+        self.secondary_contact_phone_input.setValidator(phone_validator)
 
         for label_text, widget in [
             ("Business Name:", self.business_name_input),
-            ("Contact Email:", self.primary_email_input),
+            ("Primary Email:", self.primary_email_input),
             ("Contact Street Address:", self.contact_address_input),
             ("Primary Contact Name:", self.primary_contact_input),
             ("Primary Contact Phone:", self.primary_contact_phone_input),
             ("Secondary Contact Name:", self.secondary_contact_name_input),
             ("Secondary Contact Phone:", self.secondary_contact_phone_input),
+            ("Default Term Code:", self.term_dropdown),
         ]:
             layout.addWidget(QLabel(label_text))
             layout.addWidget(widget)
@@ -59,7 +67,7 @@ class ClientManagerWidget(QWidget):
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("💾 Save Changes")
         refresh_btn = QPushButton("🔄 Refresh")
-        cancel_btn = QPushButton("← Back to Main Menu")
+        cancel_btn = QPushButton("Cancel")
 
         save_btn.clicked.connect(self.save_client)
         refresh_btn.clicked.connect(self.load_clients)
@@ -93,8 +101,8 @@ class ClientManagerWidget(QWidget):
         for row, client in enumerate(clients):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(client[1]))  # Business Name
-            self.table.setItem(row, 1, QTableWidgetItem(client[3]))  # Email
-            self.table.setItem(row, 2, QTableWidgetItem(client[4]))  # Address
+            self.table.setItem(row, 1, QTableWidgetItem(client[2]))  # Email
+            self.table.setItem(row, 2, QTableWidgetItem(client[3]))  # Address
             if highlight_client_id and client[0] == highlight_client_id:
                 self.table.selectRow(row)
 
@@ -112,18 +120,19 @@ class ClientManagerWidget(QWidget):
         self.primary_contact_phone_input.setText(client[5] or "")
         self.secondary_contact_name_input.setText(client[6] or "")
         self.secondary_contact_phone_input.setText(client[7] or "")
+        self.term_dropdown.setCurrentText(client[8] or "")
 
     def clear_fields(self):
         for widget in [
-            self.business_name_input, self.primary_email_input,
-            self.contact_address_input, self.primary_contact_input,
-            self.primary_contact_phone_input, self.secondary_contact_name_input,
-            self.secondary_contact_phone_input
+            self.business_name_input, self.primary_email_input, self.contact_address_input,
+            self.primary_contact_input, self.primary_contact_phone_input,
+            self.secondary_contact_name_input, self.secondary_contact_phone_input,
         ]:
             if isinstance(widget, QTextEdit):
                 widget.clear()
             else:
                 widget.setText("")
+        self.term_dropdown.setCurrentIndex(0)
 
     def save_client(self):
         if self.selected_client_id is None:
@@ -136,9 +145,10 @@ class ClientManagerWidget(QWidget):
             self.primary_email_input.text(),
             self.contact_address_input.toPlainText(),
             self.primary_contact_input.text(),
+            self.primary_contact_phone_input.text(),
             self.secondary_contact_name_input.text(),
             self.secondary_contact_phone_input.text(),
-            self.primary_contact_phone_input.text(),
+            self.term_dropdown.currentText()
         )
 
         QMessageBox.information(self, "Success", "Client updated successfully.")

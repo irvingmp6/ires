@@ -1,4 +1,3 @@
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QTableWidget,
     QTableWidgetItem, QHBoxLayout, QMessageBox
@@ -28,7 +27,7 @@ class FindExistingClientWidget(QWidget):
         layout.addWidget(self.search_input)
 
         button_layout = QHBoxLayout()
-        search_btn = QPushButton("Search")
+        search_btn = QPushButton("🔍 Search")
         cancel_btn = QPushButton("Cancel")
         search_btn.clicked.connect(self.perform_search)
         cancel_btn.clicked.connect(lambda: self.main_window.stack.setCurrentIndex(0))
