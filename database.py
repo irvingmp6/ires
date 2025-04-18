@@ -18,7 +18,8 @@ class Database:
             primary_contact_name TEXT,
             secondary_contact_name TEXT,
             primary_contact_phone TEXT,
-            secondary_contact_phone TEXT
+            secondary_contact_phone TEXT,
+            terms_code TEXT DEFAULT 'IMMEDIATE'
         )""")
 
         cursor.execute("""
@@ -42,6 +43,46 @@ class Database:
             total TEXT,
             FOREIGN KEY (invoice_id) REFERENCES invoices(id)
         )""")
+
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS terms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            term_code TEXT UNIQUE NOT NULL,
+            description TEXT,
+            term_verbiage TEXT NOT NULL
+        );""")
+
+        cursor.execute("""
+        INSERT OR IGNORE INTO terms (term_code, description, term_verbiage) VALUES
+            ('IMMEDIATE', 'Immediate payment', 'Payment is due immediately upon receipt.'),
+            ('DUE ON RECEIPT', 'Upon invoice delivery', 'Payment is due upon receipt of invoice.'),
+            ('NET 7', 'Net 7 days', 'Payment is due within 7 days of the invoice date.'),
+            ('NET 10', 'Net 10 days', 'Payment is due within 10 days of the invoice date.'),
+            ('NET 15', 'Net 15 days', 'Payment is due within 15 days of the invoice date.'),
+            ('NET 30', 'Net 30 days', 'Payment is due within 30 days of the invoice date.'),
+            ('NET 45', 'Net 45 days', 'Payment is due within 45 days of the invoice date.'),
+            ('NET 60', 'Net 60 days', 'Payment is due within 60 days of the invoice date.'),
+            ('NET 90', 'Net 90 days', 'Payment is due within 90 days of the invoice date.'),
+            ('EOM', 'End of Month', 'Payment is due at the end of the invoice month.'),
+            ('NET EOM 30', 'Net 30 from EOM', 'Payment is due 30 days after the end of the month.'),
+            ('COD', 'Cash on Delivery', 'Payment is due in full at the time of delivery.'),
+            ('CIA', 'Cash in Advance', 'Full payment is required before service or delivery.'),
+            ('PIA', 'Payment in Advance', 'Payment must be received prior to service or product delivery.'),
+            ('CWO', 'Cash With Order', 'Payment must be made at the time of placing the order.'),
+            ('MONTHLY', 'Monthly recurring', 'Payment is due monthly as per agreement.'),
+            ('BI-MONTHLY', 'Twice a month', 'Payment is due every two weeks.'),
+            ('QUARTERLY', 'Quarterly recurring', 'Payment is due every 3 months.'),
+            ('SEMI-ANNUALLY', 'Twice a year', 'Payment is due every 6 months.'),
+            ('ANNUALLY', 'Once a year', 'Payment is due yearly.'),
+            ('2/10 NET 30', '2% discount if paid early', '2% discount if paid within 10 days, otherwise full amount due in 30 days.'),
+            ('1/10 NET 30', '1% discount if paid early', '1% discount if paid within 10 days, otherwise full amount due in 30 days.'),
+            ('NET 30 EOM', 'Net 30 from end of month', 'Payment is due 30 days after the end of the invoice month.'),
+            ('NET 30 PROX', 'Net 30 from next month', 'Payment is due 30 days after the beginning of the month following invoice date.'),
+            ('PREPAID', 'Fully prepaid', 'Full payment required in advance.'),
+            ('STAGE PAYMENT', 'Installments', 'Payment made in agreed-upon milestones or stages.'),
+            ('PROGRESS', 'Ongoing partial payments', 'Payments made as project progresses.'),
+            ('CONSIGNMENT', 'Pay only on sale of goods', 'Goods are delivered without upfront payment; payment occurs only after goods are sold.');
+        """)
 
         self.conn.commit()
 
