@@ -19,7 +19,7 @@ class Database:
             secondary_contact_name TEXT,
             primary_contact_phone TEXT,
             secondary_contact_phone TEXT,
-            terms_code TEXT DEFAULT 'IMMEDIATE'
+            payment_terms_code TEXT DEFAULT 'DUE ON RECEIPT'
         )""")
 
         cursor.execute("""
@@ -47,14 +47,13 @@ class Database:
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS payment_terms (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            terms_code TEXT UNIQUE NOT NULL,
+            payment_terms_code TEXT UNIQUE NOT NULL,
             short_description TEXT,
             full_verbiage TEXT NOT NULL
         );""")
 
         cursor.execute("""
-        INSERT OR IGNORE INTO payment_terms (terms_code, short_description, full_verbiage) VALUES
-            ('IMMEDIATE', 'Immediate payment', 'Payment is due immediately upon receipt.'),
+        INSERT OR IGNORE INTO payment_terms (payment_terms_code, short_description, full_verbiage) VALUES
             ('DUE ON RECEIPT', 'Upon invoice delivery', 'Payment is due upon receipt of invoice.'),
             ('NET 7', 'Net 7 days', 'Payment is due within 7 days of the invoice date.'),
             ('NET 10', 'Net 10 days', 'Payment is due within 10 days of the invoice date.'),
@@ -90,25 +89,34 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT id, business_name, contact_email, street_address, primary_contact_name,
-                   primary_contact_phone, secondary_contact_name, secondary_contact_phone
+                   primary_contact_phone, secondary_contact_name, secondary_contact_phone,
+                   payment_terms_code
             FROM customers ORDER BY business_name ASC
         """)
         return cursor.fetchall()
 
+    def get_terms(self):
+        cursor = self.conn.cursor()
+        cursor.execute("""SELECT payment_terms_code FROM payment_terms ORDER BY payment_terms_code""")
+        codes = [row[0] for row in cursor.fetchall()]
+        codes.sort()
+        return codes
+
     def update_client(self, client_id, business_name, contact_email, contact_address,
                       primary_contact_name, primary_contact_phone, 
-                      secondary_contact_name, secondary_contact_phone):
+                      secondary_contact_name, secondary_contact_phone, payment_terms_code):
         cursor = self.conn.cursor()
         cursor.execute("""
             UPDATE customers
             SET business_name = ?, contact_email = ?, street_address = ?, 
                 primary_contact_name = ?, primary_contact_phone = ?,
-                secondary_contact_name = ?, secondary_contact_phone = ?
+                secondary_contact_name = ?, secondary_contact_phone = ?,
+                payment_terms_code = ?
             WHERE id = ?
         """, (business_name, contact_email, contact_address,
               primary_contact_name, primary_contact_phone,
               secondary_contact_name, secondary_contact_phone,
-              client_id))
+              payment_terms_code, client_id))
         self.conn.commit()
 
     def save_invoice(self, invoice_data, line_items):
