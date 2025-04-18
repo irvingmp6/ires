@@ -64,7 +64,7 @@ class FindExistingClientWidget(QWidget):
             query in str(c[0]).lower() or
             query in (c[1] or "").lower() or
             query in (c[2] or "").lower() or
-            query in (c[4] or "").lower()
+            query in (c[3] or "").lower()
         ]
 
         self.table.setRowCount(0)

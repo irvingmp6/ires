@@ -93,8 +93,8 @@ class ClientManagerWidget(QWidget):
         for row, client in enumerate(clients):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(client[1]))  # Business Name
-            self.table.setItem(row, 1, QTableWidgetItem(client[3]))  # Email
-            self.table.setItem(row, 2, QTableWidgetItem(client[4]))  # Address
+            self.table.setItem(row, 1, QTableWidgetItem(client[2]))  # Email
+            self.table.setItem(row, 2, QTableWidgetItem(client[3]))  # Address
             if highlight_client_id and client[0] == highlight_client_id:
                 self.table.selectRow(row)
 
@@ -136,9 +136,9 @@ class ClientManagerWidget(QWidget):
             self.primary_email_input.text(),
             self.contact_address_input.toPlainText(),
             self.primary_contact_input.text(),
+            self.primary_contact_phone_input.text(),
             self.secondary_contact_name_input.text(),
             self.secondary_contact_phone_input.text(),
-            self.primary_contact_phone_input.text(),
         )
 
         QMessageBox.information(self, "Success", "Client updated successfully.")

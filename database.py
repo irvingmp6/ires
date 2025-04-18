@@ -1,5 +1,4 @@
 import sqlite3
-import os
 from utils import DB_PATH
 
 class Database:
@@ -29,7 +28,6 @@ class Database:
             date TEXT,
             customer_id INTEGER,
             total_amount TEXT,
-            pdf_path TEXT,
             status TEXT DEFAULT 'Active',
             FOREIGN KEY (customer_id) REFERENCES customers(id)
         )""")
@@ -56,19 +54,23 @@ class Database:
         """)
         return cursor.fetchall()
 
-    def update_client(self, client_id, business_name, contact_email, contact_address, primary_contact,
-                      secondary_contact_name, primary_contact_phone, secondary_contact_phone):
+    def update_client(self, client_id, business_name, contact_email, contact_address,
+                      primary_contact_name, primary_contact_phone, 
+                      secondary_contact_name, secondary_contact_phone):
         cursor = self.conn.cursor()
         cursor.execute("""
             UPDATE customers
-            SET business_name = ?, contact_email = ?, street_address = ?, primary_contact_name = ?, 
-                secondary_contact_name = ?, primary_contact_phone = ?, secondary_contact_phone = ?
+            SET business_name = ?, contact_email = ?, street_address = ?, 
+                primary_contact_name = ?, primary_contact_phone = ?,
+                secondary_contact_name = ?, secondary_contact_phone = ?
             WHERE id = ?
-        """, (business_name, contact_email, contact_address, primary_contact, secondary_contact_name,
-               primary_contact_phone, secondary_contact_phone, client_id))
+        """, (business_name, contact_email, contact_address,
+              primary_contact_name, primary_contact_phone,
+              secondary_contact_name, secondary_contact_phone,
+              client_id))
         self.conn.commit()
 
-    def save_invoice(self, invoice_data, line_items, pdf_path):
+    def save_invoice(self, invoice_data, line_items):
         cursor = self.conn.cursor()
 
         # Insert or find customer
@@ -92,14 +94,13 @@ class Database:
         # Insert invoice
         cursor.execute("""
             INSERT OR REPLACE INTO invoices (
-                invoice_number, date, customer_id, total_amount, pdf_path
-            ) VALUES (?, ?, ?, ?, ?)""",
+                invoice_number, date, customer_id, total_amount
+            ) VALUES (?, ?, ?, ?)""",
             (
                 invoice_data["Invoice Number"],
                 invoice_data["Date"],
                 customer_id,
-                invoice_data["Total Amount"],
-                pdf_path
+                invoice_data["Total Amount"]
             )
         )
         invoice_id = cursor.lastrowid

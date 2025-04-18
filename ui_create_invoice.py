@@ -324,4 +324,4 @@ class CreateInvoiceWidget(QWidget):
             "Line Items": [],
             "Total Amount": self.total_label.text().replace("Total: $", "")
         }
-        db.save_invoice(invoice, invoice["Line Items"], save_path)
+        db.save_invoice(invoice, invoice["Line Items"])
