@@ -37,7 +37,7 @@ class Database:
         CREATE TABLE IF NOT EXISTS line_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             invoice_id INTEGER,
-            description TEXT,
+            short_description TEXT,
             quantity INTEGER,
             unit_price TEXT,
             total TEXT,
@@ -45,15 +45,15 @@ class Database:
         )""")
 
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS terms (
+        CREATE TABLE IF NOT EXISTS payment_terms (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             terms_code TEXT UNIQUE NOT NULL,
-            description TEXT,
-            term_verbiage TEXT NOT NULL
+            short_description TEXT,
+            full_verbiage TEXT NOT NULL
         );""")
 
         cursor.execute("""
-        INSERT OR IGNORE INTO terms (terms_code, description, term_verbiage) VALUES
+        INSERT OR IGNORE INTO payment_terms (terms_code, short_description, full_verbiage) VALUES
             ('IMMEDIATE', 'Immediate payment', 'Payment is due immediately upon receipt.'),
             ('DUE ON RECEIPT', 'Upon invoice delivery', 'Payment is due upon receipt of invoice.'),
             ('NET 7', 'Net 7 days', 'Payment is due within 7 days of the invoice date.'),
