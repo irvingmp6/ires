@@ -50,7 +50,7 @@ class ClientManagerWidget(QWidget):
         self.secondary_contact_name_input = QLineEdit()
         self.secondary_contact_phone_input = QLineEdit()
         self.payment_terms_dropdown = QComboBox()
-        self.payment_terms_dropdown.addItems(self.db.get_terms())
+        self.payment_terms_dropdown.addItems(self.db.get_all_payment_terms_codes())
 
         email_validator = QRegularExpressionValidator(QRegularExpression(EMAIL_REGEX))
         phone_validator = QRegularExpressionValidator(QRegularExpression(PHONE_REGEX))

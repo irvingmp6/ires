@@ -55,7 +55,7 @@ class Database:
         cursor.execute("""
         INSERT OR IGNORE INTO payment_terms (payment_terms_code, short_description, full_verbiage) VALUES
             ('DUE ON RECEIPT', 'Upon invoice delivery', 'Payment is due upon receipt of invoice.'),
-            ('NET 7', 'Net 7 days', 'Payment is due within 7 days of the invoice date.'),
+            ('NET 07', 'Net 7 days', 'Payment is due within 7 days of the invoice date.'),
             ('NET 10', 'Net 10 days', 'Payment is due within 10 days of the invoice date.'),
             ('NET 15', 'Net 15 days', 'Payment is due within 15 days of the invoice date.'),
             ('NET 30', 'Net 30 days', 'Payment is due within 30 days of the invoice date.'),
@@ -95,17 +95,28 @@ class Database:
         """)
         return cursor.fetchall()
 
-    def get_terms(self):
+    def get_all_payment_terms_codes(self):
         cursor = self.conn.cursor()
         cursor.execute("""SELECT payment_terms_code FROM payment_terms ORDER BY payment_terms_code""")
         codes = [row[0] for row in cursor.fetchall()]
         codes.sort()
         return codes
 
+    def get_all_payment_terms_full_verbiage(self):
+        cursor = self.conn.cursor()
+        cursor.execute("""SELECT payment_terms_code, full_verbiage FROM payment_terms ORDER BY payment_terms_code ASC""")
+        ordered_dict = {}
+        for row in cursor.fetchall():
+            ordered_dict[row[0]] = row[1]
+        return ordered_dict
+
     def update_client(self, client_id, business_name, contact_email, contact_address,
                       primary_contact_name, primary_contact_phone, 
                       secondary_contact_name, secondary_contact_phone, payment_terms_code):
         cursor = self.conn.cursor()
+
+        client_id = self.get_customer_id_by_email(contact_email)
+
         cursor.execute("""
             UPDATE customers
             SET business_name = ?, contact_email = ?, street_address = ?, 
@@ -119,23 +130,44 @@ class Database:
               payment_terms_code, client_id))
         self.conn.commit()
 
+    def get_customer_id_by_email(self, contact_email):
+        if not contact_email:
+            return None
+        cursor = self.conn.cursor()
+        cursor.execute("""SELECT id FROM customers WHERE contact_email = ?""", (contact_email))
+        return cursor.fetchone()[0] if cursor.fetchone() else None
+
     def save_invoice(self, invoice_data, line_items):
+        business_name = invoice_data["Business Name"]
+        contact_email = invoice_data["Contact Email"]
+        street_address = invoice_data["Street Address"]
+        invoice_number = invoice_data["Invoice Number"]
+        date = invoice_data["Date"]
+        total_amount = invoice_data["Total Amount"]
+        existing_customer_id = self.get_customer_id_by_email(contact_email)
         cursor = self.conn.cursor()
 
-        # Insert or find customer
-        cursor.execute("""
-            SELECT id FROM customers WHERE business_name = ? AND street_address = ?""",
-            (invoice_data["Business Name"], invoice_data["Contact Email"]))
-        result = cursor.fetchone()
-        if result:
-            customer_id = result[0]
+        if existing_customer_id:
+            cursor.execute("""
+                UPDATE customers SET business_name = ?, contact_email = ?, street_address = ?
+                WHERE id = ?""",
+                (
+                    business_name,
+                    contact_email,
+                    street_address,
+                    existing_customer_id
+                )
+            )
+            customer_id = existing_customer_id
+
         else:
+            # insert a new record
             cursor.execute("""
                 INSERT INTO customers (business_name, contact_email, street_address) VALUES (?, ?, ?)""",
                 (
-                    invoice_data["Business Name"],
-                    invoice_data["Contact Email"],
-                    invoice_data["Street Address"]
+                    business_name,
+                    contact_email,
+                    street_address
                 )
             )
             customer_id = cursor.lastrowid
@@ -146,10 +178,10 @@ class Database:
                 invoice_number, date, customer_id, total_amount
             ) VALUES (?, ?, ?, ?)""",
             (
-                invoice_data["Invoice Number"],
-                invoice_data["Date"],
+                invoice_number,
+                date,
                 customer_id,
-                invoice_data["Total Amount"]
+                total_amount
             )
         )
         invoice_id = cursor.lastrowid
@@ -210,3 +242,12 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("UPDATE invoices SET status = 'Voided' WHERE invoice_number = ?", (invoice_number,))
         self.conn.commit()
+
+    def get_client_term_code_by_email(self, email):
+        client_id = self.get_customer_id_by_email(email)
+        if not client_id:
+            return None
+        cursor = self.conn.cursor()
+        
+        cursor.execute("""SELECT payment_terms_code FROM customers WHERE id = ?""", (client_id))
+        return cursor.fetchone()[0]

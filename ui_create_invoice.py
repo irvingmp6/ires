@@ -5,7 +5,7 @@ from decimal import Decimal
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QTextEdit, QVBoxLayout, QHBoxLayout,
     QTableWidget, QTableWidgetItem, QPushButton, QHeaderView, QMessageBox,
-    QDateEdit, QSpinBox, QDoubleSpinBox, QFileDialog
+    QDateEdit, QSpinBox, QDoubleSpinBox, QFileDialog, QComboBox
 )
 from PyQt6.QtCore import Qt, QDate
 
@@ -22,7 +22,7 @@ class CreateInvoiceWidget(QWidget):
     def __init__(self, main_window):
         super().__init__(main_window)
         self.main_window = main_window
-
+        self.db = Database()
 
         self.invoice_fields = {}
         self.init_ui()
@@ -36,11 +36,22 @@ class CreateInvoiceWidget(QWidget):
 
         # === Invoice Fields ===
         self.invoice_fields['Invoice Number'] = self._add_labeled_input("Invoice Number:", layout)
-        self.invoice_fields['Date'] = self._add_labeled_date("Date:", layout)
+        self.invoice_fields['Date'] = self._add_labeled_date("Invoice Date:", layout)
         self.invoice_fields['Business Name'] = self._add_labeled_input("Business Name:", layout)
         self.invoice_fields['Contact Email'] = self._add_labeled_input("Contact Email:", layout)
         self.invoice_fields['Street Address'] = self._add_labeled_textarea("Street Address:", layout)
 
+        # === Payment Terms Dropdown ===
+        self.payment_terms_dropdown = QComboBox()
+        self.term_description = QLabel()
+        self.term_description.setWordWrap(True)
+        layout.addWidget(QLabel("Payment Terms:"))
+        self.payment_terms_dropdown.addItems(self.db.get_all_payment_terms_codes())
+        self.payment_terms_dropdown.currentTextChanged.connect(self.update_term_description)
+        layout.addWidget(self.payment_terms_dropdown)
+        layout.addWidget(self.term_description)
+        self.load_client_term(self.invoice_fields['Contact Email'])
+    
         # === Line Items Table ===
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["Description", "Quantity", "Unit Price", "Total"])
@@ -49,17 +60,13 @@ class CreateInvoiceWidget(QWidget):
 
         # === Add/Remove Buttons ===
         btn_layout = QHBoxLayout()
-
         add_item_btn = QPushButton("+ Add Line Item")
         add_item_btn.clicked.connect(self.add_line_item)
-
         remove_item_btn = QPushButton("– Remove Selected Item")
         remove_item_btn.clicked.connect(self.remove_selected_line_item)
-
         btn_layout.addWidget(add_item_btn)
         btn_layout.addWidget(remove_item_btn)
         btn_layout.addStretch()
-
         layout.addLayout(btn_layout)
 
         # === Total ===
@@ -161,7 +168,8 @@ class CreateInvoiceWidget(QWidget):
             "Contact Email": self.invoice_fields["Contact Email"].text(),
             "Street Address": self.invoice_fields["Street Address"].toPlainText(),
             "Line Items": [],
-            "Total Amount": self.total_label.text().replace("Total: $", "")
+            "Total Amount": self.total_label.text().replace("Total: $", ""),
+            "Term": self.payment_terms_dropdown.currentText()
         }
 
         # Validate
@@ -308,13 +316,12 @@ class CreateInvoiceWidget(QWidget):
         draw_line()
 
         c.setFont("Helvetica-Bold", 12)
-        c.drawString(400, y - 10, f"Total: {self.total_label.text().replace('Total: ', '')}")
+        c.drawString(400, y - 10, f"Total: {self.total_label.text().replace('Total: ',
+         '')}")
 
         c.save()
         QMessageBox.information(self, "PDF Created", f"PDF saved to:\n{save_path}")
 
-        # Save to DB
-        db = Database()
         invoice = {
             "Invoice Number": self.invoice_fields["Invoice Number"].text(),
             "Date": self.invoice_fields["Date"].date().toString("yyyy-MM-dd"),
@@ -322,6 +329,27 @@ class CreateInvoiceWidget(QWidget):
             "Contact Email": self.invoice_fields["Contact Email"].text(),
             "Street Address": self.invoice_fields["Street Address"].toPlainText(),
             "Line Items": [],
-            "Total Amount": self.total_label.text().replace("Total: $", "")
+            "Total Amount": self.total_label.text().replace("Total: $", ""),
+            "Term": self.payment_terms_dropdown.currentText()
         }
-        db.save_invoice(invoice, invoice["Line Items"])
+        self.db.save_invoice(invoice, invoice["Line Items"])
+
+
+    def update_term_description(self):
+        term_code = self.payment_terms_dropdown.currentText()
+        term_description = self.db.get_all_payment_terms_full_verbiage().get(term_code, '')
+        if term_description:
+            self.term_description.setText(term_description)
+        else:
+            self.term_description.clear()
+    
+    def load_client_term(self, email_field):
+        email = email_field.text()
+        saved_term = self.db.get_client_term_code_by_email(email)
+        if saved_term:
+            self.payment_terms_dropdown.setCurrentText(saved_term)
+            self.update_term_description()
+        else:
+            self.payment_terms_dropdown.setCurrentIndex(0)
+            self.term_description.clear()
+    

@@ -44,7 +44,7 @@ class FindInvoiceWidget(QWidget):
 
         # Read-only data fields
         self.fields = {}
-        for label_text in ["Invoice Number", "Date", "Business Name", "Contact Email", "Street Address", "Total Amount", "Status"]:
+        for label_text in ["Invoice Number", "Invoice Date", "Business Name", "Contact Email", "Street Address", "Total Amount", "Status"]:
             label = QLabel(f"{label_text}:")
             text = QTextEdit()
             text.setReadOnly(True)

@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        title = QLabel("IReS Pro")
+        title = QLabel("Welcome back!")
         title.setStyleSheet("font-size: 36px; font-weight: bold;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)

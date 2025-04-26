@@ -28,7 +28,7 @@ class SelectClientTypeWidget(QWidget):
 
         layout.addWidget(new_client_btn)
         layout.addWidget(existing_client_btn)
-        cancel_btn = QPushButton("← Cancel")
+        cancel_btn = QPushButton("Cancel")
         cancel_btn.setMinimumHeight(40)
         cancel_btn.clicked.connect(lambda: self.main_window.stack.setCurrentIndex(0))
         layout.addWidget(cancel_btn)
