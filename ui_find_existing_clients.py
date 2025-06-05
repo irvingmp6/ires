@@ -1,4 +1,3 @@
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QTableWidget,
     QTableWidgetItem, QHBoxLayout, QMessageBox
@@ -36,8 +35,8 @@ class FindExistingClientWidget(QWidget):
         button_layout.addWidget(cancel_btn)
         layout.addLayout(button_layout)
 
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["ID", "Name", "Email", "Primary Contact"])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["ID", "Name", "Primary Email", "Secondary Email", "Primary Contact"])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         layout.addWidget(self.table)
@@ -61,10 +60,11 @@ class FindExistingClientWidget(QWidget):
         all_clients = self.db.get_all_clients()
         self.matching_clients = [
             c for c in all_clients if
-            query in str(c[0]).lower() or
-            query in (c[1] or "").lower() or
-            query in (c[2] or "").lower() or
-            query in (c[3] or "").lower()
+            query in str(c[0]).lower() or  # ID
+            query in (c[1] or "").lower() or  # Business Name
+            query in (c[2] or "").lower() or  # Primary Email
+            query in (c[7] or "").lower() or  # Secondary Email
+            query in (c[4] or "").lower()  # Primary Contact Name
         ]
 
         self.table.setRowCount(0)
@@ -78,8 +78,9 @@ class FindExistingClientWidget(QWidget):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(str(client[0])))  # ID
             self.table.setItem(row, 1, QTableWidgetItem(client[1]))      # Name
-            self.table.setItem(row, 2, QTableWidgetItem(client[2] or ""))# Email
-            self.table.setItem(row, 3, QTableWidgetItem(client[4] or ""))# Primary Contact
+            self.table.setItem(row, 2, QTableWidgetItem(client[2] or ""))# Primary Email
+            self.table.setItem(row, 3, QTableWidgetItem(client[7] or ""))# Secondary Email
+            self.table.setItem(row, 4, QTableWidgetItem(client[4] or ""))# Primary Contact
 
         self.create_invoice_btn.setVisible(True)
 
@@ -96,6 +97,6 @@ class FindExistingClientWidget(QWidget):
         invoice_form = self.main_window.invoice_page
         invoice_form.clear_fields()
         invoice_form.invoice_fields["Business Name"].setText(client_data[1])
-        invoice_form.invoice_fields["Contact Email"].setText(client_data[2] or "")
+        invoice_form.invoice_fields["Contact Email"].setText(client_data[2] or "")  # Primary Email
         invoice_form.invoice_fields["Street Address"].setPlainText(client_data[3] or "")
         self.main_window.stack.setCurrentWidget(invoice_form)

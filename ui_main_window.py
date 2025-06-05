@@ -1,4 +1,3 @@
-
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QPushButton, QLabel, QStackedWidget, QMessageBox
 )
@@ -14,12 +13,28 @@ from ui_find_existing_clients import FindExistingClientWidget
 from ui_select_client_type import SelectClientTypeWidget
 from ui_client_manager import ClientManagerWidget
 from ui_find_invoice import FindInvoiceWidget
+from ui_view_invoice import ViewInvoiceWidget
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Invoice Reconciliation System - Software by Irving Martinez")
         self.resize(1000, 700)
+        self.showMaximized()
+
+        # Set global application style
+        self.setStyleSheet("""
+            QLabel { font-size: 14px; }
+            QLabel[title="true"] { font-size: 24px; font-weight: bold; }
+            QLineEdit { font-size: 14px; padding: 4px; }
+            QTextEdit { font-size: 14px; padding: 4px; }
+            QPushButton { font-size: 14px; padding: 6px; }
+            QComboBox { font-size: 14px; padding: 4px; }
+            QTableWidget { font-size: 14px; }
+            QHeaderView::section { font-size: 14px; padding: 6px; }
+            QSpinBox, QDoubleSpinBox { font-size: 14px; padding: 4px; }
+            QDateEdit { font-size: 14px; padding: 4px; }
+        """)
 
         self.settings = self.load_settings()
         self.init_ui()
@@ -50,7 +65,7 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.find_existing_client_page) # index 2
         self.stack.addWidget(self.invoice_page)              # index 3
         self.stack.addWidget(self.find_invoice_page)         # index 4
-        self.stack.addWidget(self.view_existing_client_page)              # index 5
+        self.stack.addWidget(self.view_existing_client_page) # index 5
 
         self.display_logo()
         self.stack.setCurrentIndex(0)

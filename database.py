@@ -13,11 +13,12 @@ class Database:
         CREATE TABLE IF NOT EXISTS customers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             business_name TEXT NOT NULL,
-            contact_email TEXT,
+            primary_email TEXT,
             street_address TEXT,
             primary_contact_name TEXT,
-            secondary_contact_name TEXT,
             primary_contact_phone TEXT,
+            secondary_contact_name TEXT,
+            secondary_email TEXT,
             secondary_contact_phone TEXT,
             payment_terms_code TEXT DEFAULT 'DUE ON RECEIPT'
         )""")
@@ -29,7 +30,14 @@ class Database:
             date TEXT,
             customer_id INTEGER,
             total_amount TEXT,
-            status TEXT DEFAULT 'Active',
+            status TEXT DEFAULT 'Active' CHECK(
+                status IN (
+                    'Active',
+                    'Void',
+                    'Paid - Pending Reconciliation',
+                    'Paid - Fully Reconciled'
+                )
+            ),
             FOREIGN KEY (customer_id) REFERENCES customers(id)
         )""")
 
@@ -88,9 +96,9 @@ class Database:
     def get_all_clients(self):
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT id, business_name, contact_email, street_address, primary_contact_name,
-                   primary_contact_phone, secondary_contact_name, secondary_contact_phone,
-                   payment_terms_code
+            SELECT id, business_name, primary_email, street_address, primary_contact_name,
+                   primary_contact_phone, secondary_contact_name, secondary_email,
+                   secondary_contact_phone, payment_terms_code
             FROM customers ORDER BY business_name ASC
         """)
         return cursor.fetchall()
@@ -110,32 +118,37 @@ class Database:
             ordered_dict[row[0]] = row[1]
         return ordered_dict
 
-    def update_client(self, client_id, business_name, contact_email, contact_address,
+    def update_client(self, client_id, business_name, primary_email, contact_address,
                       primary_contact_name, primary_contact_phone, 
-                      secondary_contact_name, secondary_contact_phone, payment_terms_code):
+                      secondary_contact_name, secondary_email,
+                      secondary_contact_phone, payment_terms_code):
         cursor = self.conn.cursor()
 
-        client_id = self.get_customer_id_by_email(contact_email)
+        client_id = self.get_customer_id_by_email(primary_email)
 
         cursor.execute("""
             UPDATE customers
-            SET business_name = ?, contact_email = ?, street_address = ?, 
+            SET business_name = ?, primary_email = ?, street_address = ?, 
                 primary_contact_name = ?, primary_contact_phone = ?,
-                secondary_contact_name = ?, secondary_contact_phone = ?,
-                payment_terms_code = ?
+                secondary_contact_name = ?, secondary_email = ?,
+                secondary_contact_phone = ?, payment_terms_code = ?
             WHERE id = ?
-        """, (business_name, contact_email, contact_address,
+        """, (business_name, primary_email, contact_address,
               primary_contact_name, primary_contact_phone,
-              secondary_contact_name, secondary_contact_phone,
-              payment_terms_code, client_id))
+              secondary_contact_name, secondary_email,
+              secondary_contact_phone, payment_terms_code, client_id))
         self.conn.commit()
 
-    def get_customer_id_by_email(self, contact_email):
-        if not contact_email:
+    def get_customer_id_by_email(self, email):
+        if not email:
             return None
         cursor = self.conn.cursor()
-        cursor.execute("""SELECT id FROM customers WHERE contact_email = ?""", (contact_email))
-        return cursor.fetchone()[0] if cursor.fetchone() else None
+        cursor.execute("""
+            SELECT id FROM customers 
+            WHERE primary_email = ? OR secondary_email = ?
+        """, (email, email))
+        result = cursor.fetchone()
+        return result[0] if result else None
 
     def save_invoice(self, invoice_data, line_items):
         business_name = invoice_data["Business Name"]
@@ -149,7 +162,7 @@ class Database:
 
         if existing_customer_id:
             cursor.execute("""
-                UPDATE customers SET business_name = ?, contact_email = ?, street_address = ?
+                UPDATE customers SET business_name = ?, primary_email = ?, street_address = ?
                 WHERE id = ?""",
                 (
                     business_name,
@@ -163,7 +176,7 @@ class Database:
         else:
             # insert a new record
             cursor.execute("""
-                INSERT INTO customers (business_name, contact_email, street_address) VALUES (?, ?, ?)""",
+                INSERT INTO customers (business_name, primary_email, street_address) VALUES (?, ?, ?)""",
                 (
                     business_name,
                     contact_email,
@@ -192,7 +205,7 @@ class Database:
         # Insert line items
         for item in line_items:
             cursor.execute("""
-                INSERT INTO line_items (invoice_id, description, quantity, unit_price, total)
+                INSERT INTO line_items (invoice_id, short_description, quantity, unit_price, total)
                 VALUES (?, ?, ?, ?, ?)""",
                 (
                     invoice_id,
@@ -209,7 +222,7 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT i.id, i.invoice_number, i.date, i.total_amount, i.status,
-                c.business_name, c.contact_email, c.street_address
+                c.business_name, c.primary_email, c.street_address
             FROM invoices i
             JOIN customers c ON i.customer_id = c.id
             WHERE i.invoice_number = ?
@@ -231,17 +244,25 @@ class Database:
         }
 
         cursor.execute("""
-            SELECT description, quantity, unit_price, total
+            SELECT short_description, quantity, unit_price, total
             FROM line_items WHERE invoice_id = ?
         """, (invoice["id"],))
 
         invoice["Line Items"] = [dict(zip(["Description", "Quantity", "Unit Price", "Total"], row)) for row in cursor.fetchall()]
         return invoice
 
-    def void_invoice(self, invoice_number):
+    def update_invoice_status(self, invoice_number, new_status):
+        """Update the status of an invoice."""
         cursor = self.conn.cursor()
-        cursor.execute("UPDATE invoices SET status = 'Voided' WHERE invoice_number = ?", (invoice_number,))
+        cursor.execute("""
+            UPDATE invoices 
+            SET status = ? 
+            WHERE invoice_number = ?
+        """, (new_status, invoice_number))
         self.conn.commit()
+
+    def void_invoice(self, invoice_number):
+        self.update_invoice_status(invoice_number, "Void")
 
     def get_client_term_code_by_email(self, email):
         client_id = self.get_customer_id_by_email(email)
@@ -249,5 +270,15 @@ class Database:
             return None
         cursor = self.conn.cursor()
         
-        cursor.execute("""SELECT payment_terms_code FROM customers WHERE id = ?""", (client_id))
+        cursor.execute("""SELECT payment_terms_code FROM customers WHERE id = ?""", (client_id,))
         return cursor.fetchone()[0]
+
+    def get_invoices_by_client_id(self, client_id):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT i.invoice_number, i.date, i.total_amount, i.status
+            FROM invoices i
+            WHERE i.customer_id = ?
+            ORDER BY i.date DESC
+        """, (client_id,))
+        return cursor.fetchall()

@@ -31,14 +31,14 @@ class CreateInvoiceWidget(QWidget):
         layout = QVBoxLayout(self)
 
         title = QLabel("Create New Invoice")
-        title.setStyleSheet("font-size: 22px; font-weight: bold;")
+        title.setProperty("title", True)
         layout.addWidget(title)
 
         # === Invoice Fields ===
         self.invoice_fields['Invoice Number'] = self._add_labeled_input("Invoice Number:", layout)
         self.invoice_fields['Date'] = self._add_labeled_date("Invoice Date:", layout)
         self.invoice_fields['Business Name'] = self._add_labeled_input("Business Name:", layout)
-        self.invoice_fields['Contact Email'] = self._add_labeled_input("Contact Email:", layout)
+        self.invoice_fields['Contact Email'] = self._add_labeled_input("Primary Contact Email:", layout)
         self.invoice_fields['Street Address'] = self._add_labeled_textarea("Street Address:", layout)
 
         # === Payment Terms Dropdown ===
@@ -73,7 +73,7 @@ class CreateInvoiceWidget(QWidget):
         total_layout = QHBoxLayout()
         total_layout.addStretch()
         self.total_label = QLabel("Total: $0.00")
-        self.total_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        self.total_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         total_layout.addWidget(self.total_label)
         layout.addLayout(total_layout)
 
@@ -177,7 +177,7 @@ class CreateInvoiceWidget(QWidget):
             QMessageBox.warning(self, "Validation Error", "Invoice Number and Business Name are required.")
             return
 
-        # Extract line items
+        # Extract line items from the table
         for row in range(self.table.rowCount()):
             item = {
                 "Description": self.table.item(row, 0).text(),
@@ -332,6 +332,16 @@ class CreateInvoiceWidget(QWidget):
             "Total Amount": self.total_label.text().replace("Total: $", ""),
             "Term": self.payment_terms_dropdown.currentText()
         }
+
+        # Extract line items from the table
+        for row in range(self.table.rowCount()):
+            item = {
+                "Description": self.table.item(row, 0).text(),
+                "Quantity": self.table.cellWidget(row, 1).value(),
+                "Unit Price": self.table.cellWidget(row, 2).value(),
+                "Total": self.table.item(row, 3).text()
+            }
+            invoice["Line Items"].append(item)
         self.db.save_invoice(invoice, invoice["Line Items"])
 
 

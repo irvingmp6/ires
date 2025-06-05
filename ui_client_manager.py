@@ -1,13 +1,13 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QPushButton, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QMessageBox
+    QPushButton, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QMessageBox,
+    QSplitter
 )
 from PyQt6.QtGui import QRegularExpressionValidator
 from PyQt6.QtCore import Qt, QRegularExpression
 
-
 from database import Database
-
+from ui_view_invoice import ViewInvoiceWidget
 
 EMAIL_REGEX = r"^[\w\.-]+@[\w\.-]+\.\w+$"
 PHONE_REGEX = r"^\+?[0-9\-\s]{7,15}$"
@@ -26,7 +26,7 @@ class ClientManagerWidget(QWidget):
 
         title = QLabel("👥 Client Manager")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        title.setProperty("title", True)
         layout.addWidget(title)
 
         self.search_input = QLineEdit()
@@ -34,44 +34,134 @@ class ClientManagerWidget(QWidget):
         self.search_input.textChanged.connect(self.filter_clients)
         layout.addWidget(self.search_input)
 
+        # Create a splitter for the tables
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.setStretchFactor(0, 2)  # Give more stretch to the client list
+        splitter.setStretchFactor(1, 1)  # Less stretch to the invoices
+        layout.addWidget(splitter)
+
+        # Clients table
+        clients_widget = QWidget()
+        clients_layout = QVBoxLayout(clients_widget)
+        clients_label = QLabel("Clients")
+        clients_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        clients_layout.addWidget(clients_label)
+
         self.table = QTableWidget()
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["Business Name", "Email", "Address"])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.itemSelectionChanged.connect(self.load_selected_client)
-        layout.addWidget(self.table)
+        clients_layout.addWidget(self.table)
+        splitter.addWidget(clients_widget)
 
+        # Invoices table
+        invoices_widget = QWidget()
+        invoices_layout = QVBoxLayout(invoices_widget)
+        invoices_label = QLabel("Related Invoices")
+        invoices_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        invoices_layout.addWidget(invoices_label)
+
+        self.invoices_table = QTableWidget()
+        self.invoices_table.setColumnCount(4)
+        self.invoices_table.setHorizontalHeaderLabels(["Invoice Number", "Date", "Amount", "Status"])
+        self.invoices_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.invoices_table.itemDoubleClicked.connect(self.view_invoice)
+        invoices_layout.addWidget(self.invoices_table)
+        splitter.addWidget(invoices_widget)
+
+        # Client details form
+        details_layout = QVBoxLayout()
+        
+        # Business details (full width)
+        business_group = QVBoxLayout()
+        business_title = QLabel("Business Information")
+        business_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        business_group.addWidget(business_title)
+        
         self.business_name_input = QLineEdit()
-        self.primary_email_input = QLineEdit()
         self.contact_address_input = QTextEdit()
         self.contact_address_input.setMaximumHeight(60)
+        
+        for label_text, widget in [
+            ("Business Name:", self.business_name_input),
+            ("Street Address:", self.contact_address_input),
+        ]:
+            business_group.addWidget(QLabel(label_text))
+            business_group.addWidget(widget)
+        
+        details_layout.addLayout(business_group)
+        
+        # Contact Information (two columns)
+        contacts_layout = QHBoxLayout()
+        
+        # Primary Contact (left column)
+        primary_group = QVBoxLayout()
+        primary_title = QLabel("Primary Contact")
+        primary_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        primary_group.addWidget(primary_title)
+        
         self.primary_contact_input = QLineEdit()
+        self.primary_email_input = QLineEdit()
         self.primary_contact_phone_input = QLineEdit()
+        
+        for label_text, widget in [
+            ("Name:", self.primary_contact_input),
+            ("Email:", self.primary_email_input),
+            ("Phone:", self.primary_contact_phone_input),
+        ]:
+            primary_group.addWidget(QLabel(label_text))
+            primary_group.addWidget(widget)
+            
+        contacts_layout.addLayout(primary_group)
+        
+        # Secondary Contact (right column)
+        secondary_group = QVBoxLayout()
+        secondary_title = QLabel("Secondary Contact")
+        secondary_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        secondary_group.addWidget(secondary_title)
+        
         self.secondary_contact_name_input = QLineEdit()
+        self.secondary_email_input = QLineEdit()
         self.secondary_contact_phone_input = QLineEdit()
+        
+        for label_text, widget in [
+            ("Name:", self.secondary_contact_name_input),
+            ("Email:", self.secondary_email_input),
+            ("Phone:", self.secondary_contact_phone_input),
+        ]:
+            secondary_group.addWidget(QLabel(label_text))
+            secondary_group.addWidget(widget)
+            
+        contacts_layout.addLayout(secondary_group)
+        
+        # Add contacts layout to details
+        details_layout.addLayout(contacts_layout)
+        
+        # Payment Terms (full width)
+        terms_group = QVBoxLayout()
+        terms_title = QLabel("Payment Terms")
+        terms_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        terms_group.addWidget(terms_title)
+        
         self.payment_terms_dropdown = QComboBox()
         self.payment_terms_dropdown.addItems(self.db.get_all_payment_terms_codes())
+        terms_group.addWidget(self.payment_terms_dropdown)
+        
+        details_layout.addLayout(terms_group)
+        
+        # Add the details layout to the main layout
+        layout.addLayout(details_layout)
 
+        # Set up validators
         email_validator = QRegularExpressionValidator(QRegularExpression(EMAIL_REGEX))
         phone_validator = QRegularExpressionValidator(QRegularExpression(PHONE_REGEX))
         self.primary_email_input.setValidator(email_validator)
+        self.secondary_email_input.setValidator(email_validator)
         self.primary_contact_phone_input.setValidator(phone_validator)
         self.secondary_contact_phone_input.setValidator(phone_validator)
 
-
-        for label_text, widget in [
-            ("Business Name:", self.business_name_input),
-            ("Contact Email:", self.primary_email_input),
-            ("Contact Street Address:", self.contact_address_input),
-            ("Primary Contact Name:", self.primary_contact_input),
-            ("Primary Contact Phone:", self.primary_contact_phone_input),
-            ("Secondary Contact Name:", self.secondary_contact_name_input),
-            ("Secondary Contact Phone:", self.secondary_contact_phone_input),
-            ("Default Payment Terms Code:", self.payment_terms_dropdown),
-        ]:
-            layout.addWidget(QLabel(label_text))
-            layout.addWidget(widget)
-
+        # Buttons
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("💾 Save Changes")
         refresh_btn = QPushButton("🔄 Refresh")
@@ -93,6 +183,7 @@ class ClientManagerWidget(QWidget):
         self.display_clients(self.all_clients)
         self.selected_client_id = None
         self.clear_fields()
+        self.invoices_table.setRowCount(0)
 
     def filter_clients(self):
         phrase = self.search_input.text().lower()
@@ -127,22 +218,56 @@ class ClientManagerWidget(QWidget):
         self.primary_contact_input.setText(client[4] or "")
         self.primary_contact_phone_input.setText(client[5] or "")
         self.secondary_contact_name_input.setText(client[6] or "")
-        self.secondary_contact_phone_input.setText(client[7] or "")
-        self.payment_terms_dropdown.setCurrentText(client[8] or "")
+        self.secondary_email_input.setText(client[7] or "")
+        self.secondary_contact_phone_input.setText(client[8] or "")
+        self.payment_terms_dropdown.setCurrentText(client[9] or "")
 
+        # Load related invoices
+        self.load_client_invoices()
+
+    def load_client_invoices(self):
+        if not self.selected_client_id:
+            self.invoices_table.setRowCount(0)
+            return
+
+        invoices = self.db.get_invoices_by_client_id(self.selected_client_id)
+        self.invoices_table.setRowCount(0)
+        for invoice in invoices:
+            row = self.invoices_table.rowCount()
+            self.invoices_table.insertRow(row)
+            self.invoices_table.setItem(row, 0, QTableWidgetItem(str(invoice[0])))  # Invoice Number
+            self.invoices_table.setItem(row, 1, QTableWidgetItem(str(invoice[1])))  # Date
+            self.invoices_table.setItem(row, 2, QTableWidgetItem(f"${invoice[2]}"))  # Amount
+            self.invoices_table.setItem(row, 3, QTableWidgetItem(str(invoice[3])))  # Status
+
+    def view_invoice(self, item):
+        row = item.row()
+        invoice_number = self.invoices_table.item(row, 0).text()
+        
+        # Create the view invoice widget if it doesn't exist
+        if not hasattr(self.main_window, 'view_invoice_page'):
+            self.main_window.view_invoice_page = ViewInvoiceWidget(self.main_window, self)
+            self.main_window.stack.addWidget(self.main_window.view_invoice_page)
+        else:
+            # Update the parent widget reference
+            self.main_window.view_invoice_page.parent_widget = self
+        
+        # Display the invoice and switch to the view
+        self.main_window.view_invoice_page.display_invoice(invoice_number)
+        self.main_window.stack.setCurrentWidget(self.main_window.view_invoice_page)
 
     def clear_fields(self):
         for widget in [
             self.business_name_input, self.primary_email_input,
             self.contact_address_input, self.primary_contact_input,
             self.primary_contact_phone_input, self.secondary_contact_name_input,
-            self.secondary_contact_phone_input
+            self.secondary_email_input, self.secondary_contact_phone_input
         ]:
             if isinstance(widget, QTextEdit):
                 widget.clear()
             else:
                 widget.setText("")
-            self.payment_terms_dropdown.setCurrentIndex(0)
+        self.payment_terms_dropdown.setCurrentIndex(0)
 
     def save_client(self):
         if self.selected_client_id is None:
@@ -157,6 +282,7 @@ class ClientManagerWidget(QWidget):
             self.primary_contact_input.text(),
             self.primary_contact_phone_input.text(),
             self.secondary_contact_name_input.text(),
+            self.secondary_email_input.text(),
             self.secondary_contact_phone_input.text(),
             self.payment_terms_dropdown.currentText()
         )

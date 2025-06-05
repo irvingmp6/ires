@@ -1,12 +1,51 @@
+import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QTextEdit
+    QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QTextEdit,
+    QDialog, QComboBox
 )
 from PyQt6.QtCore import Qt
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import LETTER
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.barcode import qr
 from database import Database
 from PyQt6.QtWidgets import QFileDialog
+
+class ChangeStatusDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Change Invoice Status")
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Status dropdown
+        self.status_combo = QComboBox()
+        self.status_combo.addItems([
+            "Active",
+            "Void",
+            "Paid - Pending Reconciliation",
+            "Paid - Fully Reconciled"
+        ])
+        layout.addWidget(QLabel("Select New Status:"))
+        layout.addWidget(self.status_combo)
+
+        # Buttons
+        btn_layout = QHBoxLayout()
+        ok_btn = QPushButton("OK")
+        cancel_btn = QPushButton("Cancel")
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+
+    def get_selected_status(self):
+        return self.status_combo.currentText()
 
 class FindInvoiceWidget(QWidget):
     def __init__(self, main_window):
@@ -20,7 +59,7 @@ class FindInvoiceWidget(QWidget):
         self.layout = QVBoxLayout(self)
 
         title = QLabel("🔍 Find Invoice")
-        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        title.setProperty("title", True)
         self.layout.addWidget(title)
 
         # Invoice ID search bar
@@ -55,124 +94,226 @@ class FindInvoiceWidget(QWidget):
 
         # Line item table
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Description", "Qty", "Unit Price", "Total"])
+        self.table.setHorizontalHeaderLabels(["Description", "Quantity", "Unit Price", "Total"])
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.layout.addWidget(self.table)
-        self.table.setVisible(False)
 
         # Action buttons
-        self.void_btn = QPushButton("Void Invoice")
-        self.pdf_btn = QPushButton("Export as PDF")
-        self.void_btn.clicked.connect(self.void_invoice)
-        self.pdf_btn.clicked.connect(self.export_pdf)
+        action_layout = QHBoxLayout()
+        
+        change_status_btn = QPushButton("Change Status")
+        change_status_btn.clicked.connect(self.change_invoice_status)
+        action_layout.addWidget(change_status_btn)
+        
+        reprint_btn = QPushButton("🖨️ Reprint PDF")
+        reprint_btn.clicked.connect(self.reprint_pdf)
+        action_layout.addWidget(reprint_btn)
+        
+        self.layout.addLayout(action_layout)
 
-        self.void_btn.setVisible(False)
-        self.pdf_btn.setVisible(False)
+    def change_invoice_status(self):
+        if not self.invoice_data:
+            QMessageBox.warning(self, "No Invoice", "Please find an invoice first.")
+            return
 
-        btns_layout = QHBoxLayout()
-        btns_layout.addWidget(self.void_btn)
-        btns_layout.addWidget(self.pdf_btn)
-        self.layout.addLayout(btns_layout)
+        dialog = ChangeStatusDialog(self)
+        if dialog.exec():
+            new_status = dialog.get_selected_status()
+            invoice_number = self.invoice_data["Invoice Number"]
+            self.db.update_invoice_status(invoice_number, new_status)
+            self.fields["Status"].setText(new_status)
+            QMessageBox.information(self, "Success", f"Invoice status updated to: {new_status}")
 
     def find_invoice(self):
         invoice_number = self.invoice_id_input.text().strip()
         if not invoice_number:
-            QMessageBox.warning(self, "Missing ID", "Please enter an Invoice Number.")
+            QMessageBox.warning(self, "No Input", "Please enter an invoice number.")
             return
 
-        invoice = self.db.find_invoice(invoice_number)
-        if not invoice:
-            self.info_label.setText("❌ No invoice found with that ID.")
-            self.clear_fields()
-            self.table.setVisible(False)
-            self.void_btn.setVisible(False)
-            self.pdf_btn.setVisible(False)
+        self.invoice_data = self.db.find_invoice(invoice_number)
+        if not self.invoice_data:
+            QMessageBox.warning(self, "Not Found", "No invoice found with that number.")
             return
 
-        self.invoice_data = invoice
-        self.info_label.setText("✅ Invoice found.")
+        # Display invoice data
+        self.fields["Invoice Number"].setText(self.invoice_data["Invoice Number"])
+        self.fields["Invoice Date"].setText(self.invoice_data["Date"])
+        self.fields["Business Name"].setText(self.invoice_data["Business Name"])
+        self.fields["Contact Email"].setText(self.invoice_data["Contact Email"])
+        self.fields["Street Address"].setText(self.invoice_data["Street Address"])
+        self.fields["Total Amount"].setText(self.invoice_data["Total Amount"])
+        self.fields["Status"].setText(self.invoice_data["Status"])
 
-        for key in self.fields:
-            self.fields[key].setText(invoice.get(key, ""))
-
+        # Display line items
         self.table.setRowCount(0)
-        self.table.setVisible(True)
-        for item in invoice["Line Items"]:
+        for item in self.invoice_data["Line Items"]:
             row = self.table.rowCount()
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(item["Description"]))
             self.table.setItem(row, 1, QTableWidgetItem(str(item["Quantity"])))
-            self.table.setItem(row, 2, QTableWidgetItem(str(item["Unit Price"])))
-            self.table.setItem(row, 3, QTableWidgetItem(str(item["Total"])))
+            self.table.setItem(row, 2, QTableWidgetItem(f"${item['Unit Price']}"))
+            self.table.setItem(row, 3, QTableWidgetItem(f"${item['Total']}"))
 
-        self.void_btn.setVisible(True)
-        self.pdf_btn.setVisible(True)
+    def return_to_main_menu(self):
+        self.main_window.stack.setCurrentIndex(0)
 
-    def void_invoice(self):
+    def reprint_pdf(self):
         if not self.invoice_data:
+            QMessageBox.warning(self, "No Invoice", "Please find an invoice first.")
             return
 
-        invoice_number = self.invoice_data["Invoice Number"]
-        self.db.void_invoice(invoice_number)
-        QMessageBox.information(self, "Voided", f"Invoice {invoice_number} marked as Voided.")
-        self.fields["Status"].setText("Voided")
-
-    def export_pdf(self):
-        if not self.invoice_data:
-            return
-
-        save_path, _ = QFileDialog.getSaveFileName(self, "Export PDF", f"{self.invoice_data['Invoice Number']}.pdf", "PDF Files (*.pdf)")
+        save_path, _ = QFileDialog.getSaveFileName(
+            self, 
+            "Save Invoice PDF", 
+            f"{self.invoice_data['Invoice Number']}.pdf",
+            "PDF Files (*.pdf)"
+        )
         if not save_path:
             return
 
         c = canvas.Canvas(save_path, pagesize=LETTER)
         width, height = LETTER
         y = height - 40
+        page_number = 1
 
         def draw_line():
             nonlocal y
             c.line(40, y, width - 40, y)
             y -= 20
 
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(40, y, f"Invoice: {self.invoice_data['Invoice Number']}")
+        def add_page_number():
+            c.saveState()
+            c.setFont("Helvetica", 8)
+            text = f"Page {page_number}"
+            c.drawString(width/2 - 20, 30, text)
+            c.restoreState()
+
+        def get_status_color():
+            status = self.invoice_data['Status']
+            if status == "Void":
+                return colors.red
+            elif status == "Paid - Fully Reconciled":
+                return colors.green
+            elif status == "Paid - Pending Reconciliation":
+                return colors.orange
+            return colors.black
+
+        # Add logo if available
+        if hasattr(self.main_window, 'settings') and 'logo_path' in self.main_window.settings:
+            logo_path = self.main_window.settings['logo_path']
+            if os.path.exists(logo_path):
+                c.drawImage(logo_path, width - 200, height - 60, width=150, preserveAspectRatio=True)
+
+        # Title
+        c.setFont("Helvetica-Bold", 24)
+        c.drawString(40, y, "INVOICE")
+        y -= 40
+
+        # Invoice Details with colored status
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(40, y, f"Invoice Number: {self.invoice_data['Invoice Number']}")
+        
+        # Draw status with appropriate color
+        status_color = get_status_color()
+        c.setFillColor(status_color)
+        c.drawString(300, y, f"Status: {self.invoice_data['Status']}")
+        c.setFillColor(colors.black)  # Reset color
+        y -= 25
+
+        c.setFont("Helvetica", 12)
+        c.drawString(40, y, f"Date: {self.invoice_data['Date']}")
         y -= 30
 
-        for key in ["Date", "Business Name", "Contact Email", "Street Address", "Status"]:
-            c.setFont("Helvetica", 10)
-            c.drawString(40, y, f"{key}: {self.invoice_data[key]}")
-            y -= 15
+        # Add watermark for voided invoices
+        if self.invoice_data['Status'] == "Void":
+            c.saveState()
+            c.setFont("Helvetica-Bold", 80)
+            c.setFillColor(colors.red, alpha=0.3)
+            c.rotate(45)
+            c.drawString(150, 100, "VOID")
+            c.restoreState()
 
-        draw_line()
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(40, y, "Description")
-        c.drawString(250, y, "Qty")
-        c.drawString(300, y, "Unit Price")
-        c.drawString(400, y, "Total")
+        # Business Details
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(40, y, "Bill To:")
+        y -= 20
+
+        c.setFont("Helvetica", 12)
+        c.drawString(40, y, self.invoice_data['Business Name'])
         y -= 15
-
-        c.setFont("Helvetica", 10)
-        for item in self.invoice_data["Line Items"]:
-            c.drawString(40, y, item["Description"])
-            c.drawString(250, y, str(item["Quantity"]))
-            c.drawString(300, y, str(item["Unit Price"]))
-            c.drawString(400, y, str(item["Total"]))
+        
+        # Split address into lines and draw each line
+        address_lines = self.invoice_data['Street Address'].split('\n')
+        for line in address_lines:
+            c.drawString(40, y, line.strip())
             y -= 15
-            if y < 100:
-                c.showPage()
-                y = height - 40
 
+        c.drawString(40, y, self.invoice_data['Contact Email'])
+        y -= 30
+
+        # Line Items Header
         draw_line()
         c.setFont("Helvetica-Bold", 12)
-        c.drawString(400, y - 10, f"Total: ${self.invoice_data['Total Amount']}")
+        c.drawString(40, y, "Description")
+        c.drawString(300, y, "Quantity")
+        c.drawString(380, y, "Unit Price")
+        c.drawString(460, y, "Total")
+        y -= 15
+        draw_line()
+
+        # Line Items
+        c.setFont("Helvetica", 11)
+        for item in self.invoice_data["Line Items"]:
+            # Check if we need a new page
+            if y < 100:
+                add_page_number()
+                c.showPage()
+                page_number += 1
+                y = height - 40
+
+                # Add watermark on new page if voided
+                if self.invoice_data['Status'] == "Void":
+                    c.saveState()
+                    c.setFont("Helvetica-Bold", 80)
+                    c.setFillColor(colors.red, alpha=0.3)
+                    c.rotate(45)
+                    c.drawString(150, 100, "VOID")
+                    c.restoreState()
+
+                # Redraw headers on new page
+                c.setFont("Helvetica-Bold", 12)
+                c.drawString(40, y, "Description")
+                c.drawString(300, y, "Quantity")
+                c.drawString(380, y, "Unit Price")
+                c.drawString(460, y, "Total")
+                y -= 15
+                draw_line()
+                c.setFont("Helvetica", 11)
+
+            c.drawString(40, y, item["Description"])
+            c.drawString(300, y, str(item["Quantity"]))
+            c.drawString(380, y, f"${item['Unit Price']}")
+            c.drawString(460, y, f"${item['Total']}")
+            y -= 20
+
+        # Total
+        y -= 10
+        draw_line()
+        c.setFont("Helvetica-Bold", 14)
+        total_text = f"Total Amount: ${self.invoice_data['Total Amount']}"
+        c.drawString(width - 200, y, total_text)
+
+        # Payment Terms
+        if 'Term' in self.invoice_data:
+            y -= 40
+            c.setFont("Helvetica-Bold", 11)
+            c.drawString(40, y, "Payment Terms:")
+            c.setFont("Helvetica", 11)
+            c.drawString(130, y, self.invoice_data['Term'])
+
+        # Add final page number
+        add_page_number()
+
         c.save()
-
-        QMessageBox.information(self, "Exported", f"Invoice PDF saved to:\n{save_path}")
-
-    def clear_fields(self):
-        for field in self.fields.values():
-            field.clear()
-        self.table.setRowCount(0)
-
-    def return_to_main_menu(self):
-        self.main_window.stack.setCurrentIndex(0)
+        QMessageBox.information(self, "Success", f"PDF saved to:\n{save_path}")
 
