@@ -19,8 +19,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Invoice Reconciliation System - Software by Irving Martinez")
-        self.resize(1000, 700)
-        self.showMaximized()
+        self.setMinimumSize(800, 600)  # Set minimum size
+        self.setWindowState(Qt.WindowState.WindowMaximized)  # Ensure window is maximized
+        self.setWindowFlags(Qt.WindowType.Window)  # Set proper window flags
 
         # Set global application style
         self.setStyleSheet("""
@@ -45,9 +46,6 @@ class MainWindow(QMainWindow):
 
         layout = QVBoxLayout(self.central_widget)
 
-        self.logo_label = QLabel(alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.logo_label)
-
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
 
@@ -67,12 +65,16 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.find_invoice_page)         # index 4
         self.stack.addWidget(self.view_existing_client_page) # index 5
 
-        self.display_logo()
         self.stack.setCurrentIndex(0)
 
     def create_main_menu_view(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
+
+        # Add logo to main menu only
+        self.logo_label = QLabel(alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.logo_label)
+        self.display_logo()
 
         title = QLabel("Welcome back!")
         title.setStyleSheet("font-size: 36px; font-weight: bold;")

@@ -67,14 +67,10 @@ class FindInvoiceWidget(QWidget):
         self.invoice_id_input = QLineEdit()
         self.invoice_id_input.setPlaceholderText("Enter Invoice Number")
         find_btn = QPushButton("Find")
-        cancel_btn = QPushButton("Cancel")
-
         find_btn.clicked.connect(self.find_invoice)
-        cancel_btn.clicked.connect(self.return_to_main_menu)
 
         input_layout.addWidget(self.invoice_id_input)
         input_layout.addWidget(find_btn)
-        input_layout.addWidget(cancel_btn)
         self.layout.addLayout(input_layout)
 
         # Info area
@@ -108,6 +104,10 @@ class FindInvoiceWidget(QWidget):
         reprint_btn = QPushButton("🖨️ Reprint PDF")
         reprint_btn.clicked.connect(self.reprint_pdf)
         action_layout.addWidget(reprint_btn)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.return_to_main_menu)
+        action_layout.addWidget(cancel_btn)
         
         self.layout.addLayout(action_layout)
 

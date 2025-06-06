@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QPushButton, QHeaderView, QMessageBox,
     QDateEdit, QSpinBox, QDoubleSpinBox, QFileDialog, QComboBox
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt, QDate, QDateTime
 
 from reportlab.lib.pagesizes import LETTER
 from reportlab.pdfgen import canvas
@@ -26,6 +26,7 @@ class CreateInvoiceWidget(QWidget):
 
         self.invoice_fields = {}
         self.init_ui()
+        self.generate_invoice_number()  # Generate initial invoice number
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -36,6 +37,7 @@ class CreateInvoiceWidget(QWidget):
 
         # === Invoice Fields ===
         self.invoice_fields['Invoice Number'] = self._add_labeled_input("Invoice Number:", layout)
+        self.invoice_fields['Invoice Number'].setPlaceholderText("Auto-generated - Can be modified if needed")
         self.invoice_fields['Date'] = self._add_labeled_date("Invoice Date:", layout)
         self.invoice_fields['Business Name'] = self._add_labeled_input("Business Name:", layout)
         self.invoice_fields['Contact Email'] = self._add_labeled_input("Primary Contact Email:", layout)
@@ -250,6 +252,7 @@ class CreateInvoiceWidget(QWidget):
                 widget.setDate(QDate.currentDate())
         self.table.setRowCount(0)
         self.total_label.setText("Total: $0.00")
+        self.generate_invoice_number()  # Generate new invoice number after clearing
 
     def create_pdf(self):
         invoice_number = self.invoice_fields["Invoice Number"].text() or "unnamed"
@@ -362,4 +365,12 @@ class CreateInvoiceWidget(QWidget):
         else:
             self.payment_terms_dropdown.setCurrentIndex(0)
             self.term_description.clear()
+    
+    def generate_invoice_number(self):
+        """Generate an invoice number in the format INV-YYYYMMDD-HHMMSS"""
+        current_datetime = QDateTime.currentDateTime()
+        date_part = current_datetime.toString("yyyyMMdd")
+        time_part = current_datetime.toString("hhmmss")
+        invoice_number = f"INV-{date_part}-{time_part}"
+        self.invoice_fields["Invoice Number"].setText(invoice_number)
     

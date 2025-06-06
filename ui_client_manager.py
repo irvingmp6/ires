@@ -27,6 +27,7 @@ class ClientManagerWidget(QWidget):
         title = QLabel("👥 Client Manager")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setProperty("title", True)
+        title.setStyleSheet("font-size: 22px; font-weight: bold;")
         layout.addWidget(title)
 
         self.search_input = QLineEdit()
@@ -44,7 +45,7 @@ class ClientManagerWidget(QWidget):
         clients_widget = QWidget()
         clients_layout = QVBoxLayout(clients_widget)
         clients_label = QLabel("Clients")
-        clients_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        clients_label.setStyleSheet("font-size: 14px; font-weight: bold;")
         clients_layout.addWidget(clients_label)
 
         self.table = QTableWidget()
@@ -52,6 +53,7 @@ class ClientManagerWidget(QWidget):
         self.table.setHorizontalHeaderLabels(["Business Name", "Email", "Address"])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.itemSelectionChanged.connect(self.load_selected_client)
+        self.table.setStyleSheet("font-size: 12px;")
         clients_layout.addWidget(self.table)
         splitter.addWidget(clients_widget)
 
@@ -59,7 +61,7 @@ class ClientManagerWidget(QWidget):
         invoices_widget = QWidget()
         invoices_layout = QVBoxLayout(invoices_widget)
         invoices_label = QLabel("Related Invoices")
-        invoices_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        invoices_label.setStyleSheet("font-size: 14px; font-weight: bold;")
         invoices_layout.addWidget(invoices_label)
 
         self.invoices_table = QTableWidget()
@@ -67,6 +69,7 @@ class ClientManagerWidget(QWidget):
         self.invoices_table.setHorizontalHeaderLabels(["Invoice Number", "Date", "Amount", "Status"])
         self.invoices_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.invoices_table.itemDoubleClicked.connect(self.view_invoice)
+        self.invoices_table.setStyleSheet("font-size: 12px;")
         invoices_layout.addWidget(self.invoices_table)
         splitter.addWidget(invoices_widget)
 
@@ -76,18 +79,25 @@ class ClientManagerWidget(QWidget):
         # Business details (full width)
         business_group = QVBoxLayout()
         business_title = QLabel("Business Information")
-        business_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        business_title.setStyleSheet("font-size: 14px; font-weight: bold;")
         business_group.addWidget(business_title)
         
         self.business_name_input = QLineEdit()
         self.contact_address_input = QTextEdit()
         self.contact_address_input.setMaximumHeight(60)
         
+        # Set font size for input fields
+        input_style = "font-size: 12px;"
+        self.business_name_input.setStyleSheet(input_style)
+        self.contact_address_input.setStyleSheet(input_style)
+        
         for label_text, widget in [
             ("Business Name:", self.business_name_input),
             ("Street Address:", self.contact_address_input),
         ]:
-            business_group.addWidget(QLabel(label_text))
+            label = QLabel(label_text)
+            label.setStyleSheet("font-size: 12px;")
+            business_group.addWidget(label)
             business_group.addWidget(widget)
         
         details_layout.addLayout(business_group)
@@ -98,19 +108,25 @@ class ClientManagerWidget(QWidget):
         # Primary Contact (left column)
         primary_group = QVBoxLayout()
         primary_title = QLabel("Primary Contact")
-        primary_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        primary_title.setStyleSheet("font-size: 14px; font-weight: bold;")
         primary_group.addWidget(primary_title)
         
         self.primary_contact_input = QLineEdit()
         self.primary_email_input = QLineEdit()
         self.primary_contact_phone_input = QLineEdit()
         
+        # Set font size for primary contact inputs
+        for widget in [self.primary_contact_input, self.primary_email_input, self.primary_contact_phone_input]:
+            widget.setStyleSheet(input_style)
+        
         for label_text, widget in [
             ("Name:", self.primary_contact_input),
             ("Email:", self.primary_email_input),
             ("Phone:", self.primary_contact_phone_input),
         ]:
-            primary_group.addWidget(QLabel(label_text))
+            label = QLabel(label_text)
+            label.setStyleSheet("font-size: 12px;")
+            primary_group.addWidget(label)
             primary_group.addWidget(widget)
             
         contacts_layout.addLayout(primary_group)
@@ -118,19 +134,25 @@ class ClientManagerWidget(QWidget):
         # Secondary Contact (right column)
         secondary_group = QVBoxLayout()
         secondary_title = QLabel("Secondary Contact")
-        secondary_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        secondary_title.setStyleSheet("font-size: 14px; font-weight: bold;")
         secondary_group.addWidget(secondary_title)
         
         self.secondary_contact_name_input = QLineEdit()
         self.secondary_email_input = QLineEdit()
         self.secondary_contact_phone_input = QLineEdit()
         
+        # Set font size for secondary contact inputs
+        for widget in [self.secondary_contact_name_input, self.secondary_email_input, self.secondary_contact_phone_input]:
+            widget.setStyleSheet(input_style)
+        
         for label_text, widget in [
             ("Name:", self.secondary_contact_name_input),
             ("Email:", self.secondary_email_input),
             ("Phone:", self.secondary_contact_phone_input),
         ]:
-            secondary_group.addWidget(QLabel(label_text))
+            label = QLabel(label_text)
+            label.setStyleSheet("font-size: 12px;")
+            secondary_group.addWidget(label)
             secondary_group.addWidget(widget)
             
         contacts_layout.addLayout(secondary_group)
@@ -141,10 +163,11 @@ class ClientManagerWidget(QWidget):
         # Payment Terms (full width)
         terms_group = QVBoxLayout()
         terms_title = QLabel("Payment Terms")
-        terms_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        terms_title.setStyleSheet("font-size: 14px; font-weight: bold;")
         terms_group.addWidget(terms_title)
         
         self.payment_terms_dropdown = QComboBox()
+        self.payment_terms_dropdown.setStyleSheet("font-size: 12px;")
         self.payment_terms_dropdown.addItems(self.db.get_all_payment_terms_codes())
         terms_group.addWidget(self.payment_terms_dropdown)
         

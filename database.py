@@ -20,7 +20,8 @@ class Database:
             secondary_contact_name TEXT,
             secondary_email TEXT,
             secondary_contact_phone TEXT,
-            payment_terms_code TEXT DEFAULT 'DUE ON RECEIPT'
+            payment_terms_code TEXT DEFAULT 'DUE ON RECEIPT',
+            date_created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
 
         cursor.execute("""
@@ -99,7 +100,8 @@ class Database:
             SELECT id, business_name, primary_email, street_address, primary_contact_name,
                    primary_contact_phone, secondary_contact_name, secondary_email,
                    secondary_contact_phone, payment_terms_code
-            FROM customers ORDER BY business_name ASC
+            FROM customers 
+            ORDER BY date_created DESC, business_name ASC
         """)
         return cursor.fetchall()
 
