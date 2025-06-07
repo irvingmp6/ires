@@ -4,6 +4,8 @@ from utils import DB_PATH
 class Database:
     def __init__(self):
         self.conn = sqlite3.connect(DB_PATH)
+        self.conn.row_factory = sqlite3.Row
+        self.cursor = self.conn.cursor()
         self.create_tables()
 
     def create_tables(self):
@@ -284,3 +286,65 @@ class Database:
             ORDER BY i.date DESC
         """, (client_id,))
         return cursor.fetchall()
+
+    def search_invoices(self, filters):
+        """
+        Search for invoices based on the provided filters
+        filters: dict containing search criteria
+        """
+        query = """
+            SELECT 
+                i.invoice_number as "Invoice Number",
+                i.date as "Date",
+                c.business_name as "Business Name",
+                i.total_amount as "Total Amount",
+                i.status as "Status",
+                i.date as "Last Modified"
+            FROM invoices i
+            JOIN customers c ON i.customer_id = c.id
+            WHERE 1=1
+        """
+        params = []
+
+        if filters['invoice_number']:
+            query += " AND i.invoice_number LIKE ?"
+            params.append(f"%{filters['invoice_number']}%")
+
+        if filters['business_name']:
+            query += " AND c.business_name LIKE ?"
+            params.append(f"%{filters['business_name']}%")
+
+        if filters['date_from']:
+            query += " AND i.date >= ?"
+            params.append(filters['date_from'])
+
+        if filters['date_to']:
+            query += " AND i.date <= ?"
+            params.append(filters['date_to'])
+
+        if filters['status']:
+            query += " AND i.status = ?"
+            params.append(filters['status'])
+
+        if filters['amount_from']:
+            try:
+                amount = float(filters['amount_from'])
+                query += " AND CAST(i.total_amount AS REAL) >= ?"
+                params.append(amount)
+            except ValueError:
+                pass
+
+        if filters['amount_to']:
+            try:
+                amount = float(filters['amount_to'])
+                query += " AND CAST(i.total_amount AS REAL) <= ?"
+                params.append(amount)
+            except ValueError:
+                pass
+
+        query += " ORDER BY i.date DESC, i.invoice_number DESC"
+
+        cursor = self.conn.cursor()
+        cursor.row_factory = sqlite3.Row  # Set row factory for this cursor
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]  # Convert Row objects to dictionaries

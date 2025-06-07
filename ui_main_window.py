@@ -8,12 +8,11 @@ import json
 
 from utils import resize_image, SETTINGS_FILE, RECOMMENDED_LOGO_SIZE
 from ui_create_invoice import CreateInvoiceWidget
-from ui_settings import SettingsDialog
-from ui_find_existing_clients import FindExistingClientWidget
-from ui_select_client_type import SelectClientTypeWidget
 from ui_client_manager import ClientManagerWidget
-from ui_find_invoice import FindInvoiceWidget
-from ui_view_invoice import ViewInvoiceWidget
+from ui_manage_invoices import ManageInvoicesWidget
+from ui_settings import SettingsDialog
+from ui_select_client_type import SelectClientTypeWidget
+from ui_find_existing_clients import FindExistingClientWidget
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -51,28 +50,28 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-
+        
         layout = QVBoxLayout(self.central_widget)
-
+        
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
-
+        
         # Instantiate all views
         self.main_menu = self.create_main_menu_view()
         self.select_client_type_page = SelectClientTypeWidget(self)
         self.find_existing_client_page = FindExistingClientWidget(self)
         self.invoice_page = CreateInvoiceWidget(self)
-        self.find_invoice_page = FindInvoiceWidget(self)
+        self.find_invoice_page = ManageInvoicesWidget(self)
         self.view_existing_client_page = ClientManagerWidget(self)
-
+        
         # Add to stack
         self.stack.addWidget(self.main_menu)                  # index 0
-        self.stack.addWidget(self.select_client_type_page)   # index 1
-        self.stack.addWidget(self.find_existing_client_page) # index 2
-        self.stack.addWidget(self.invoice_page)              # index 3
-        self.stack.addWidget(self.find_invoice_page)         # index 4
-        self.stack.addWidget(self.view_existing_client_page) # index 5
-
+        self.stack.addWidget(self.select_client_type_page)    # index 1
+        self.stack.addWidget(self.find_existing_client_page)  # index 2
+        self.stack.addWidget(self.invoice_page)               # index 3
+        self.stack.addWidget(self.find_invoice_page)          # index 4
+        self.stack.addWidget(self.view_existing_client_page)  # index 5
+        
         self.stack.setCurrentIndex(0)
 
     def create_main_menu_view(self):
@@ -90,10 +89,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(title)
 
         buttons = [
-            ("Create New Invoice", self.goto_client_type_selector),
-            ("Find Invoice", lambda: self.stack.setCurrentWidget(self.find_invoice_page)),
-            ("Manage Clients", lambda: self.stack.setCurrentWidget(self.view_existing_client_page)),
-            ("Settings", self.open_settings)
+            ("📝 Create New Invoice", self.goto_client_type_selector),
+            ("👥 Manage Clients", lambda: self.stack.setCurrentWidget(self.view_existing_client_page)),
+            ("📋 Manage Invoices", lambda: self.stack.setCurrentWidget(self.find_invoice_page)),
+            ("⚙️ Settings", self.open_settings)
         ]
 
         for label, handler in buttons:
@@ -141,6 +140,12 @@ class MainWindow(QMainWindow):
             self.settings = dlg.settings
             self.save_settings()
             self.display_logo()
+
+    def show_manage_clients(self):
+        self.stack.setCurrentWidget(self.view_existing_client_page)
+
+    def show_manage_invoices(self):
+        self.stack.setCurrentWidget(self.find_invoice_page)
 
     def closeEvent(self, event):
         """Save window state and geometry when closing the application"""
