@@ -1,5 +1,6 @@
 import sqlite3
 from utils import DB_PATH
+import json
 
 class Database:
     def __init__(self):
@@ -105,6 +106,16 @@ class Database:
             ('STAGE PAYMENT', 'Installments', 'Payment made in agreed-upon milestones or stages.'),
             ('PROGRESS', 'Ongoing partial payments', 'Payments made as project progresses.'),
             ('CONSIGNMENT', 'Pay only on sale of goods', 'Goods are delivered without upfront payment; payment occurs only after goods are sold.');
+        """)
+
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS invoice_drafts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_number TEXT UNIQUE NOT NULL,
+            draft_data TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
         """)
 
         self.conn.commit()
@@ -418,3 +429,138 @@ class Database:
                 'payment_terms_code': row[8]
             }
         return None
+
+    def save_invoice_draft(self, draft_data):
+        """Save an invoice draft to the database"""
+        cursor = self.conn.cursor()
+        try:
+            # Convert draft data to JSON for storage
+            draft_json = json.dumps(draft_data)
+            
+            # Check if draft already exists
+            cursor.execute("""
+                SELECT id FROM invoice_drafts 
+                WHERE invoice_number = ?
+            """, (draft_data['invoice_number'],))
+            
+            existing_draft = cursor.fetchone()
+            
+            if existing_draft:
+                # Update existing draft
+                cursor.execute("""
+                    UPDATE invoice_drafts 
+                    SET draft_data = ?,
+                        last_modified = CURRENT_TIMESTAMP
+                    WHERE invoice_number = ?
+                """, (draft_json, draft_data['invoice_number']))
+            else:
+                # Insert new draft
+                cursor.execute("""
+                    INSERT INTO invoice_drafts (
+                        invoice_number,
+                        draft_data,
+                        created_at,
+                        last_modified
+                    ) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, (draft_data['invoice_number'], draft_json))
+            
+            self.conn.commit()
+            
+        except Exception as e:
+            self.conn.rollback()
+            raise Exception(f"Failed to save draft: {str(e)}")
+        finally:
+            cursor.close()
+
+    def get_invoice_drafts(self):
+        """Get all draft invoices"""
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT invoice_number, draft_data, created_at, last_modified 
+                FROM invoice_drafts 
+                ORDER BY last_modified DESC
+            """)
+            
+            drafts = []
+            for row in cursor.fetchall():
+                draft_data = json.loads(row[1])
+                drafts.append({
+                    'invoice_number': row[0],
+                    'date': draft_data.get('date', ''),
+                    'business_name': draft_data.get('business_name', ''),
+                    'contact_name': draft_data.get('contact_name', ''),
+                    'last_modified': row[3]
+                })
+            
+            return drafts
+            
+        except Exception as e:
+            raise Exception(f"Failed to get drafts: {str(e)}")
+        finally:
+            cursor.close()
+
+    def get_invoice_draft(self, invoice_number):
+        """Get a specific draft invoice"""
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT draft_data 
+                FROM invoice_drafts 
+                WHERE invoice_number = ?
+            """, (invoice_number,))
+            
+            row = cursor.fetchone()
+            if row:
+                return json.loads(row[0])
+            return None
+            
+        except Exception as e:
+            raise Exception(f"Failed to get draft: {str(e)}")
+        finally:
+            cursor.close()
+
+    def delete_invoice_draft(self, invoice_number):
+        """Delete a draft invoice"""
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("""
+                DELETE FROM invoice_drafts 
+                WHERE invoice_number = ?
+            """, (invoice_number,))
+            
+            self.conn.commit()
+            
+        except Exception as e:
+            self.conn.rollback()
+            raise Exception(f"Failed to delete draft: {str(e)}")
+        finally:
+            cursor.close()
+
+    def invoice_number_exists(self, invoice_number):
+        """Check if an invoice number already exists in either invoices or drafts"""
+        cursor = self.conn.cursor()
+        try:
+            # Check in invoices table
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM invoices 
+                WHERE invoice_number = ?
+            """, (invoice_number,))
+            
+            if cursor.fetchone()[0] > 0:
+                return True
+                
+            # Check in drafts table
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM invoice_drafts 
+                WHERE invoice_number = ?
+            """, (invoice_number,))
+            
+            return cursor.fetchone()[0] > 0
+            
+        except Exception as e:
+            raise Exception(f"Failed to check invoice number: {str(e)}")
+        finally:
+            cursor.close()

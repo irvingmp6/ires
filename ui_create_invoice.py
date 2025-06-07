@@ -7,7 +7,8 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QPushButton, QHeaderView, QMessageBox,
     QDateEdit, QSpinBox, QDoubleSpinBox, QFileDialog, QComboBox, QGroupBox, QFormLayout, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QDate, QDateTime
+from PyQt6.QtCore import Qt, QDate, QDateTime, QTimer
+from PyQt6.QtGui import QFocusEvent
 
 from reportlab.lib.pagesizes import LETTER
 from reportlab.pdfgen import canvas
@@ -26,8 +27,24 @@ class CreateInvoiceWidget(QWidget):
         self._cached_data = None  # Initialize cache variable
         self.selected_client_id = None
         self.invoice_fields = {}
+        
+        # Setup auto-save timer
+        self.auto_save_timer = QTimer(self)
+        self.auto_save_timer.timeout.connect(self.auto_save)
+        self.auto_save_timer.setInterval(5 * 60 * 1000)  # 5 minutes in milliseconds
+        
+        # Status label for auto-save
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: gray; font-size: 10px;")
+        
+        # Timer for clearing status message
+        self.status_timer = QTimer(self)
+        self.status_timer.timeout.connect(self.clear_status)
+        self.status_timer.setSingleShot(True)
+        
         self.init_ui()
         self.generate_invoice_number()  # Generate initial invoice number
+        self.auto_save_timer.start()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -41,12 +58,20 @@ class CreateInvoiceWidget(QWidget):
         invoice_details = QGroupBox("Invoice Details")
         invoice_layout = QFormLayout()
 
-        # Invoice number field (auto-generated)
+        # Invoice number field with regenerate button
+        invoice_number_layout = QHBoxLayout()
         self.invoice_fields = {}
         self.invoice_fields["Invoice Number"] = QLineEdit()
-        self.invoice_fields["Invoice Number"].setReadOnly(True)
-        self.generate_invoice_number()  # Generate initial number
-        invoice_layout.addRow("Invoice Number:", self.invoice_fields["Invoice Number"])
+        self.invoice_fields["Invoice Number"].setPlaceholderText("Enter invoice number")
+        
+        regenerate_btn = QPushButton("🔄")
+        regenerate_btn.setToolTip("Generate a new invoice number")
+        regenerate_btn.setMaximumWidth(30)  # Make the button compact
+        regenerate_btn.clicked.connect(self.generate_invoice_number)
+        
+        invoice_number_layout.addWidget(self.invoice_fields["Invoice Number"])
+        invoice_number_layout.addWidget(regenerate_btn)
+        invoice_layout.addRow("Invoice Number:", invoice_number_layout)
 
         # Date field
         self.date_edit = QDateEdit()
@@ -89,20 +114,30 @@ class CreateInvoiceWidget(QWidget):
         # Totals Section
         layout.addWidget(self.init_totals_section())
 
+        # Add status label at the bottom
+        layout.addWidget(self.status_label)
+
         # Action Buttons
         button_layout = QHBoxLayout()
         
-        save_btn = QPushButton("💾 Save Invoice")
-        save_btn.clicked.connect(self.save_invoice)
+        save_draft_btn = QPushButton("💾 Save Draft")
+        save_draft_btn.clicked.connect(self.save_draft)
+        save_draft_btn.setToolTip("Save your progress to continue later without creating the invoice")
         
         preview_btn = QPushButton("👁️ Preview PDF")
         preview_btn.clicked.connect(self.create_pdf)
+        preview_btn.setToolTip("Generate a PDF preview without saving the invoice")
+        
+        create_btn = QPushButton("✅ Create Invoice")
+        create_btn.clicked.connect(self.save_invoice)
+        create_btn.setToolTip("Save the invoice and generate the final PDF")
         
         cancel_btn = QPushButton("❌ Cancel")
         cancel_btn.clicked.connect(self.cancel_invoice)
         
-        button_layout.addWidget(save_btn)
+        button_layout.addWidget(save_draft_btn)
         button_layout.addWidget(preview_btn)
+        button_layout.addWidget(create_btn)
         button_layout.addWidget(cancel_btn)
         
         layout.addLayout(button_layout)
@@ -212,13 +247,48 @@ class CreateInvoiceWidget(QWidget):
             # Save to database
             self.db.save_invoice(invoice_data, line_items)
             
-            QMessageBox.information(self, "Success", "Invoice saved successfully!")
+            # Delete any existing draft for this invoice
+            try:
+                self.db.delete_invoice_draft(invoice_data['invoice_number'])
+            except Exception as draft_e:
+                # Log the error but don't stop the process since the invoice was saved successfully
+                print(f"Warning: Failed to delete draft after invoice creation: {str(draft_e)}")
+            
+            QMessageBox.information(self, "Success", "Invoice created successfully!")
+            
+            # Ask user if they want to generate PDF now
+            reply = QMessageBox.question(
+                self,
+                "Generate PDF",
+                "Would you like to generate the PDF for this invoice now?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                self.create_pdf()
+            
             self.return_to_main_menu()
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save invoice: {str(e)}")
 
     def validate_fields(self):
+        """Validate all required fields before saving"""
+        # Validate invoice number
+        invoice_number = self.invoice_fields["Invoice Number"].text().strip()
+        if not invoice_number:
+            QMessageBox.warning(self, "Validation Error", "Please enter an invoice number.")
+            return False
+            
+        # Check if invoice number already exists
+        if self.db.invoice_number_exists(invoice_number):
+            QMessageBox.warning(
+                self, 
+                "Validation Error", 
+                "This invoice number already exists. Please use a different number or click the regenerate button."
+            )
+            return False
+
         if not self.selected_client_id:
             QMessageBox.warning(self, "Validation Error", "Please select a client first.")
             return False
@@ -244,7 +314,12 @@ class CreateInvoiceWidget(QWidget):
         return True
 
     def cancel_invoice(self):
+        """Cache the current data and return to main menu"""
         self.cache_invoice_data()
+        self.return_to_main_menu()
+
+    def return_to_main_menu(self):
+        """Return to the main menu"""
         self.main_window.stack.setCurrentIndex(0)
 
     def cache_invoice_data(self):
@@ -627,10 +702,19 @@ class CreateInvoiceWidget(QWidget):
     def format_currency(self, amount):
         """Format a number as currency with thousand separators"""
         try:
-            # Convert to float first to handle string inputs
-            value = float(str(amount).replace('$', '').replace(',', ''))
+            # Handle various input types
+            if isinstance(amount, str):
+                # Remove any existing formatting
+                amount = amount.replace("$", "").replace(",", "")
+            
+            # Convert to Decimal for precise calculation
+            value = Decimal(str(amount))
+            
+            # Ensure non-negative
+            value = max(value, Decimal("0.00"))
+            
             return "${:,.2f}".format(value)
-        except (ValueError, TypeError):
+        except (ValueError, decimal.InvalidOperation):
             return "$0.00"
 
     def update_totals(self):
@@ -644,37 +728,79 @@ class CreateInvoiceWidget(QWidget):
                 
             try:
                 qty = Decimal(str(self.line_items_table.cellWidget(row, 1).value()))
-                unit_price = Decimal(str(self.line_items_table.cellWidget(row, 2).text() or "0"))
+                
+                # Validate unit price
+                price_text = self.line_items_table.cellWidget(row, 2).text().strip()
+                if not price_text:  # Empty price
+                    unit_price = Decimal("0.00")
+                else:
+                    try:
+                        # Remove any currency symbols and commas
+                        price_text = price_text.replace("$", "").replace(",", "")
+                        unit_price = Decimal(price_text)
+                    except (ValueError, decimal.InvalidOperation):
+                        QMessageBox.warning(
+                            self,
+                            "Invalid Price",
+                            f"Invalid price format in row {row + 1}. Please enter a valid number.\nExample: 123.45"
+                        )
+                        self.line_items_table.cellWidget(row, 2).setText("0.00")
+                        unit_price = Decimal("0.00")
                 
                 # Calculate line item total before discount
                 line_total = qty * unit_price
                 
                 # Apply line item discount
                 discount_type = self.line_items_table.cellWidget(row, 3).currentText()
-                discount_value = self.line_items_table.cellWidget(row, 4).text()
+                discount_value_text = self.line_items_table.cellWidget(row, 4).text().strip()
                 
-                if discount_type == "PERCENTAGE":
-                    discount = line_total * (Decimal(discount_value) / Decimal("100"))
-                    line_total -= discount
-                elif discount_type == "FIXED_AMOUNT":
-                    discount = Decimal(discount_value)
-                    line_total -= discount
-                elif discount_type == "BULK":
-                    # Parse bulk discount format (e.g., "3:1" means buy 3 get 1 free)
+                if discount_type != "NONE" and discount_value_text:
                     try:
-                        buy, get = map(int, discount_value.split(":"))
-                        if buy > 0 and get > 0:
+                        if discount_type == "PERCENTAGE":
+                            # Remove % symbol if present
+                            discount_value_text = discount_value_text.rstrip("%")
+                            discount_value = Decimal(discount_value_text)
+                            if discount_value < 0 or discount_value > 100:
+                                raise ValueError("Percentage must be between 0 and 100")
+                            discount = line_total * (discount_value / Decimal("100"))
+                            line_total -= discount
+                        elif discount_type == "FIXED_AMOUNT":
+                            # Remove currency symbols and commas
+                            discount_value_text = discount_value_text.replace("$", "").replace(",", "")
+                            discount = Decimal(discount_value_text)
+                            if discount < 0:
+                                raise ValueError("Discount amount cannot be negative")
+                            line_total -= discount
+                        elif discount_type == "BULK":
+                            # Parse bulk discount format (e.g., "3:1" means buy 3 get 1 free)
+                            if ":" not in discount_value_text:
+                                raise ValueError("Bulk discount must be in format 'X:Y'")
+                            buy, get = map(int, discount_value_text.split(":"))
+                            if buy <= 0 or get <= 0:
+                                raise ValueError("Bulk discount values must be positive")
+                            if get >= buy:
+                                raise ValueError("Buy quantity must be greater than free quantity")
                             total_sets = int(qty) // (buy + get)
                             discount = (total_sets * get) * unit_price
                             line_total -= discount
-                    except:
-                        pass
+                    except (ValueError, decimal.InvalidOperation) as e:
+                        error_msg = str(e) if str(e) != "decimal.InvalidOperation" else "Invalid number format"
+                        QMessageBox.warning(
+                            self,
+                            "Invalid Discount",
+                            f"Invalid discount in row {row + 1}: {error_msg}\n\n"
+                            "Valid formats:\n"
+                            "- Percentage: Enter a number between 0-100\n"
+                            "- Fixed Amount: Enter a valid number\n"
+                            "- Bulk: Enter in format 'X:Y' (e.g., '3:1' for buy 3 get 1 free)"
+                        )
+                        self.line_items_table.cellWidget(row, 4).setText("")
                 
                 # Update line total display with formatting
                 self.line_items_table.item(row, 6).setText(self.format_currency(line_total))
                 subtotal += line_total
                 
-            except (ValueError, TypeError, AttributeError):
+            except (ValueError, decimal.InvalidOperation, AttributeError) as e:
                 continue
         
         # Update subtotal display
@@ -684,21 +810,44 @@ class CreateInvoiceWidget(QWidget):
         discount_amount = Decimal("0.00")
         if self.discount_type.currentText() == "PERCENTAGE":
             try:
-                percentage = Decimal(self.discount_value.text() or "0")
-                discount_amount = subtotal * (percentage / Decimal("100"))
-            except:
-                pass
+                discount_text = self.discount_value.text().strip().rstrip("%")
+                if discount_text:
+                    percentage = Decimal(discount_text)
+                    if percentage < 0 or percentage > 100:
+                        raise ValueError("Percentage must be between 0 and 100")
+                    discount_amount = subtotal * (percentage / Decimal("100"))
+            except (ValueError, decimal.InvalidOperation):
+                QMessageBox.warning(
+                    self,
+                    "Invalid Discount",
+                    "Invalid percentage format. Please enter a number between 0-100.\nExample: 25 for 25%"
+                )
+                self.discount_value.setText("")
         elif self.discount_type.currentText() == "FIXED_AMOUNT":
             try:
-                discount_amount = Decimal(self.discount_value.text() or "0")
-            except:
-                pass
+                discount_text = self.discount_value.text().strip()
+                if discount_text:
+                    # Remove currency symbols and commas
+                    discount_text = discount_text.replace("$", "").replace(",", "")
+                    discount_amount = Decimal(discount_text)
+                    if discount_amount < 0:
+                        raise ValueError("Discount amount cannot be negative")
+                    if discount_amount > subtotal:
+                        raise ValueError("Discount cannot be greater than subtotal")
+            except (ValueError, decimal.InvalidOperation) as e:
+                error_msg = str(e) if "Discount" in str(e) else "Invalid number format"
+                QMessageBox.warning(
+                    self,
+                    "Invalid Discount",
+                    f"{error_msg}\nPlease enter a valid amount.\nExample: 123.45"
+                )
+                self.discount_value.setText("")
         
         # Update discount amount display
         self.discount_amount_label.setText(self.format_currency(discount_amount))
         
         # Calculate and update final total
-        final_total = subtotal - discount_amount
+        final_total = max(subtotal - discount_amount, Decimal("0.00"))  # Ensure total never goes negative
         self.total_label.setText(self.format_currency(final_total))
 
     def add_line_item(self):
@@ -777,4 +926,122 @@ class CreateInvoiceWidget(QWidget):
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Failed to create new client: {str(e)}")
                 self.selected_client_id = None
+    
+    def save_draft(self):
+        """Save the current invoice as a draft"""
+        # Validate basic fields
+        if not self.client_info["Business Name"].text().strip():
+            QMessageBox.warning(self, "Validation Error", "Please enter a business name before saving draft.")
+            return
+
+        try:
+            # Prepare draft data
+            draft_data = {
+                'invoice_number': self.invoice_fields["Invoice Number"].text(),
+                'date': self.date_edit.date().toString("yyyy-MM-dd"),
+                'business_name': self.client_info["Business Name"].text(),
+                'contact_name': self.client_info["Contact Name"].text(),
+                'contact_email': self.client_info["Contact Email"].text(),
+                'phone_number': self.client_info["Phone Number"].text(),
+                'street_address': self.client_info["Street Address"].toPlainText(),
+                'customer_id': self.selected_client_id,
+                'line_items': []
+            }
+
+            # Get line items
+            for row in range(self.line_items_table.rowCount()):
+                if not self.line_items_table.item(row, 0):  # Skip empty rows
+                    continue
+                    
+                line_item = {
+                    'description': self.line_items_table.item(row, 0).text(),
+                    'quantity': self.line_items_table.cellWidget(row, 1).value(),
+                    'unit_price': self.line_items_table.cellWidget(row, 2).text(),
+                    'discount_type': self.line_items_table.cellWidget(row, 3).currentText(),
+                    'discount_value': self.line_items_table.cellWidget(row, 4).text(),
+                    'discount_description': self.line_items_table.item(row, 5).text() if self.line_items_table.item(row, 5) else '',
+                    'total': self.line_items_table.item(row, 6).text().replace('$', '')
+                }
+                draft_data['line_items'].append(line_item)
+
+            # Save to database
+            self.db.save_invoice_draft(draft_data)
+            
+            # Show a temporary status message
+            status_msg = QMessageBox(self)
+            status_msg.setIcon(QMessageBox.Icon.Information)
+            status_msg.setText("Draft saved successfully!")
+            status_msg.setWindowTitle("Success")
+            status_msg.setStandardButtons(QMessageBox.StandardButton.NoButton)
+            status_msg.show()
+            
+            # Auto-close the message after 1.5 seconds
+            QTimer.singleShot(1500, status_msg.close)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save draft: {str(e)}")
+
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        """Auto-save when window loses focus"""
+        super().focusOutEvent(event)
+        self.auto_save()
+
+    def auto_save(self):
+        """Automatically save the current invoice as a draft"""
+        # Don't auto-save if no business name (indicating a new/empty form)
+        if not self.client_info["Business Name"].text().strip():
+            return
+
+        try:
+            # Prepare draft data
+            draft_data = {
+                'invoice_number': self.invoice_fields["Invoice Number"].text(),
+                'date': self.date_edit.date().toString("yyyy-MM-dd"),
+                'business_name': self.client_info["Business Name"].text(),
+                'contact_name': self.client_info["Contact Name"].text(),
+                'contact_email': self.client_info["Contact Email"].text(),
+                'phone_number': self.client_info["Phone Number"].text(),
+                'street_address': self.client_info["Street Address"].toPlainText(),
+                'customer_id': self.selected_client_id,
+                'line_items': []
+            }
+
+            # Get line items
+            for row in range(self.line_items_table.rowCount()):
+                if not self.line_items_table.item(row, 0):  # Skip empty rows
+                    continue
+                    
+                line_item = {
+                    'description': self.line_items_table.item(row, 0).text(),
+                    'quantity': self.line_items_table.cellWidget(row, 1).value(),
+                    'unit_price': self.line_items_table.cellWidget(row, 2).text(),
+                    'discount_type': self.line_items_table.cellWidget(row, 3).currentText(),
+                    'discount_value': self.line_items_table.cellWidget(row, 4).text(),
+                    'discount_description': self.line_items_table.item(row, 5).text() if self.line_items_table.item(row, 5) else '',
+                    'total': self.line_items_table.item(row, 6).text().replace('$', '')
+                }
+                draft_data['line_items'].append(line_item)
+
+            # Save to database
+            self.db.save_invoice_draft(draft_data)
+            
+            # Show status message
+            current_time = QDateTime.currentDateTime().toString("hh:mm:ss")
+            self.status_label.setText(f"Auto-saved at {current_time}")
+            
+            # Clear status message after 3 seconds
+            self.status_timer.start(3000)
+            
+        except Exception as e:
+            # Log the error but don't show to user since this is automatic
+            print(f"Auto-save failed: {str(e)}")
+
+    def clear_status(self):
+        """Clear the status message"""
+        self.status_label.clear()
+
+    def closeEvent(self, event):
+        """Auto-save when closing the window"""
+        self.auto_save()
+        super().closeEvent(event)
     
