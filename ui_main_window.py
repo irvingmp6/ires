@@ -20,8 +20,17 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Invoice Reconciliation System - Software by Irving Martinez")
         self.setMinimumSize(800, 600)  # Set minimum size
-        self.setWindowState(Qt.WindowState.WindowMaximized)  # Ensure window is maximized
-        self.setWindowFlags(Qt.WindowType.Window)  # Set proper window flags
+        
+        self.settings = self.load_settings()
+        
+        # Restore window state and geometry if saved, otherwise maximize
+        if self.settings.get("window_geometry") and self.settings.get("window_state"):
+            self.restoreGeometry(bytes.fromhex(self.settings["window_geometry"]))
+            self.restoreState(bytes.fromhex(self.settings["window_state"]))
+        else:
+            self.setWindowState(Qt.WindowState.WindowMaximized)
+        
+        self.setWindowFlags(Qt.WindowType.Window)
 
         # Set global application style
         self.setStyleSheet("""
@@ -37,7 +46,6 @@ class MainWindow(QMainWindow):
             QDateEdit { font-size: 14px; padding: 4px; }
         """)
 
-        self.settings = self.load_settings()
         self.init_ui()
 
     def init_ui(self):
@@ -133,3 +141,10 @@ class MainWindow(QMainWindow):
             self.settings = dlg.settings
             self.save_settings()
             self.display_logo()
+
+    def closeEvent(self, event):
+        """Save window state and geometry when closing the application"""
+        self.settings["window_geometry"] = bytes(self.saveGeometry()).hex()
+        self.settings["window_state"] = bytes(self.saveState()).hex()
+        self.save_settings()
+        event.accept()

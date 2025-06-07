@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QPushButton, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QMessageBox,
-    QSplitter
+    QSplitter, QHeaderView
 )
 from PyQt6.QtGui import QRegularExpressionValidator
 from PyQt6.QtCore import Qt, QRegularExpression
@@ -54,6 +54,14 @@ class ClientManagerWidget(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.itemSelectionChanged.connect(self.load_selected_client)
         self.table.setStyleSheet("font-size: 12px;")
+        
+        # Set column widths for clients table
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # Business Name
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Email
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Address
+        self.table.setColumnWidth(0, 200)  # Set Business Name column width to 200 pixels
+        
         clients_layout.addWidget(self.table)
         splitter.addWidget(clients_widget)
 
@@ -70,6 +78,15 @@ class ClientManagerWidget(QWidget):
         self.invoices_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.invoices_table.itemDoubleClicked.connect(self.view_invoice)
         self.invoices_table.setStyleSheet("font-size: 12px;")
+        
+        # Set column widths for invoices table
+        invoice_header = self.invoices_table.horizontalHeader()
+        invoice_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # Invoice Number
+        invoice_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Date
+        invoice_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Amount
+        invoice_header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Status
+        self.invoices_table.setColumnWidth(0, 180)  # Set Invoice Number column width to 180 pixels
+        
         invoices_layout.addWidget(self.invoices_table)
         splitter.addWidget(invoices_widget)
 
