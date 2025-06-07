@@ -11,6 +11,12 @@ class Database:
     def create_tables(self):
         cursor = self.conn.cursor()
 
+        # Drop existing tables in reverse order of dependencies
+        cursor.execute("DROP TABLE IF EXISTS line_items")
+        cursor.execute("DROP TABLE IF EXISTS invoices")
+        cursor.execute("DROP TABLE IF EXISTS customers")
+        cursor.execute("DROP TABLE IF EXISTS payment_terms")
+
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS customers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,6 +38,10 @@ class Database:
             invoice_number TEXT NOT NULL UNIQUE,
             date TEXT,
             customer_id INTEGER,
+            subtotal_amount TEXT,
+            discount_type TEXT CHECK(discount_type IN ('NONE', 'PERCENTAGE', 'FIXED_AMOUNT')),
+            discount_value TEXT,
+            discount_description TEXT,
             total_amount TEXT,
             status TEXT DEFAULT 'Active' CHECK(
                 status IN (
@@ -51,6 +61,9 @@ class Database:
             short_description TEXT,
             quantity INTEGER,
             unit_price TEXT,
+            discount_type TEXT CHECK(discount_type IN ('NONE', 'PERCENTAGE', 'FIXED_AMOUNT', 'BULK')),
+            discount_value TEXT,
+            discount_description TEXT,
             total TEXT,
             FOREIGN KEY (invoice_id) REFERENCES invoices(id)
         )""")
@@ -155,72 +168,58 @@ class Database:
         return result[0] if result else None
 
     def save_invoice(self, invoice_data, line_items):
-        business_name = invoice_data["Business Name"]
-        contact_email = invoice_data["Contact Email"]
-        street_address = invoice_data["Street Address"]
-        invoice_number = invoice_data["Invoice Number"]
-        date = invoice_data["Date"]
-        total_amount = invoice_data["Total Amount"]
-        existing_customer_id = self.get_customer_id_by_email(contact_email)
+        """Save invoice and its line items to the database"""
         cursor = self.conn.cursor()
 
-        if existing_customer_id:
+        try:
+            # Insert invoice
             cursor.execute("""
-                UPDATE customers SET business_name = ?, primary_email = ?, street_address = ?
-                WHERE id = ?""",
-                (
-                    business_name,
-                    contact_email,
-                    street_address,
-                    existing_customer_id
-                )
-            )
-            customer_id = existing_customer_id
+                INSERT OR REPLACE INTO invoices (
+                    invoice_number, date, customer_id, 
+                    subtotal_amount, discount_type, discount_value,
+                    discount_description, total_amount, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Active')
+            """, (
+                invoice_data['invoice_number'],
+                invoice_data['date'],
+                invoice_data['customer_id'],
+                invoice_data['subtotal_amount'],
+                invoice_data['discount_type'],
+                invoice_data['discount_value'],
+                invoice_data['discount_description'],
+                invoice_data['total_amount']
+            ))
+            
+            invoice_id = cursor.lastrowid
 
-        else:
-            # insert a new record
-            cursor.execute("""
-                INSERT INTO customers (business_name, primary_email, street_address) VALUES (?, ?, ?)""",
-                (
-                    business_name,
-                    contact_email,
-                    street_address
-                )
-            )
-            customer_id = cursor.lastrowid
+            # Delete old line items (if any)
+            cursor.execute("DELETE FROM line_items WHERE invoice_id = ?", (invoice_id,))
 
-        # Insert invoice
-        cursor.execute("""
-            INSERT OR REPLACE INTO invoices (
-                invoice_number, date, customer_id, total_amount
-            ) VALUES (?, ?, ?, ?)""",
-            (
-                invoice_number,
-                date,
-                customer_id,
-                total_amount
-            )
-        )
-        invoice_id = cursor.lastrowid
-
-        # Delete old line items (if any)
-        cursor.execute("DELETE FROM line_items WHERE invoice_id = ?", (invoice_id,))
-
-        # Insert line items
-        for item in line_items:
-            cursor.execute("""
-                INSERT INTO line_items (invoice_id, short_description, quantity, unit_price, total)
-                VALUES (?, ?, ?, ?, ?)""",
-                (
+            # Insert line items
+            for item in line_items:
+                cursor.execute("""
+                    INSERT INTO line_items (
+                        invoice_id, short_description, quantity, 
+                        unit_price, discount_type, discount_value,
+                        discount_description, total
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
                     invoice_id,
-                    item["Description"],
-                    item["Quantity"],
-                    item["Unit Price"],
-                    item["Total"]
-                )
-            )
+                    item['description'],
+                    item['quantity'],
+                    item['unit_price'],
+                    item['discount_type'],
+                    item['discount_value'],
+                    item['discount_description'],
+                    item['total']
+                ))
 
-        self.conn.commit()
+            self.conn.commit()
+            return invoice_id
+
+        except Exception as e:
+            self.conn.rollback()
+            raise Exception(f"Database error: {str(e)}")
 
     def find_invoice(self, invoice_number):
         cursor = self.conn.cursor()
@@ -348,3 +347,74 @@ class Database:
         cursor.row_factory = sqlite3.Row  # Set row factory for this cursor
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]  # Convert Row objects to dictionaries
+
+    def create_new_client(self, client_data):
+        """Create a new client and return their ID"""
+        cursor = self.conn.cursor()
+        
+        # Check if client already exists
+        cursor.execute("""
+            SELECT id FROM customers 
+            WHERE primary_email = ? OR secondary_email = ?
+        """, (client_data['primary_email'], client_data['primary_email']))
+        
+        existing = cursor.fetchone()
+        if existing:
+            return existing[0]  # Return existing client ID
+            
+        # Insert new client
+        cursor.execute("""
+            INSERT INTO customers (
+                business_name, primary_email, street_address,
+                primary_contact_name, primary_contact_phone,
+                secondary_contact_name, secondary_email,
+                secondary_contact_phone, payment_terms_code,
+                date_created
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, (
+            client_data['business_name'],
+            client_data['primary_email'],
+            client_data['street_address'],
+            client_data['primary_contact_name'],
+            client_data['primary_contact_phone'],
+            client_data['secondary_contact_name'],
+            client_data['secondary_email'],
+            client_data['secondary_contact_phone'],
+            client_data['payment_terms_code']
+        ))
+        
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_client_by_id(self, client_id):
+        """Get client information by ID"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT 
+                business_name,
+                primary_email,
+                street_address,
+                primary_contact_name,
+                primary_contact_phone,
+                secondary_contact_name,
+                secondary_email,
+                secondary_contact_phone,
+                payment_terms_code
+            FROM customers 
+            WHERE id = ?
+        """, (client_id,))
+        
+        row = cursor.fetchone()
+        if row:
+            return {
+                'business_name': row[0],
+                'primary_email': row[1],
+                'street_address': row[2],
+                'primary_contact_name': row[3],
+                'primary_contact_phone': row[4],
+                'secondary_contact_name': row[5],
+                'secondary_email': row[6],
+                'secondary_contact_phone': row[7],
+                'payment_terms_code': row[8]
+            }
+        return None

@@ -89,10 +89,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(title)
 
         buttons = [
-            ("📝 Create New Invoice", self.goto_client_type_selector),
-            ("👥 Manage Clients", lambda: self.stack.setCurrentWidget(self.view_existing_client_page)),
-            ("📋 Manage Invoices", lambda: self.stack.setCurrentWidget(self.find_invoice_page)),
-            ("⚙️ Settings", self.open_settings)
+            ("Create New Invoice", self.goto_client_type_selector),
+            ("Manage Clients", lambda: self.stack.setCurrentWidget(self.view_existing_client_page)),
+            ("Manage Invoices", lambda: self.stack.setCurrentWidget(self.find_invoice_page)),
+            ("Settings", self.open_settings)
         ]
 
         for label, handler in buttons:
