@@ -47,6 +47,7 @@ class SelectClientTypeWidget(QWidget):
             btn.setStyleSheet("font-size: 18px;")
 
     def create_new_client(self):
+        self.main_window.invoice_page.set_previous_widget(self)
         self.main_window.stack.setCurrentWidget(self.main_window.invoice_page)
 
     def find_existing_client(self):

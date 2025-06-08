@@ -1,11 +1,12 @@
 import json
 import os
+import sys
 from decimal import Decimal
 
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QTextEdit, QVBoxLayout, QHBoxLayout,
     QTableWidget, QTableWidgetItem, QPushButton, QHeaderView, QMessageBox,
-    QDateEdit, QSpinBox, QDoubleSpinBox, QFileDialog, QComboBox, QGroupBox, QFormLayout, QSizePolicy
+    QDateEdit, QSpinBox, QDoubleSpinBox, QFileDialog, QComboBox, QGroupBox, QFormLayout, QSizePolicy, QDialog, QListWidget, QListWidgetItem
 )
 from PyQt6.QtCore import Qt, QDate, QDateTime, QTimer
 from PyQt6.QtGui import QFocusEvent
@@ -27,6 +28,7 @@ class CreateInvoiceWidget(QWidget):
         self._cached_data = None  # Initialize cache variable
         self.selected_client_id = None
         self.invoice_fields = {}
+        self.previous_widget = None  # Store the widget we came from
         
         # Setup auto-save timer
         self.auto_save_timer = QTimer(self)
@@ -46,6 +48,31 @@ class CreateInvoiceWidget(QWidget):
         self.generate_invoice_number()  # Generate initial invoice number
         self.auto_save_timer.start()
 
+    def set_previous_widget(self, widget):
+        """Set the widget to return to when back button is pressed"""
+        self.previous_widget = widget
+        # Update back button tooltip based on where we came from
+        back_tooltip = "Return to "
+        if widget == self.main_window.find_invoice_page:
+            back_tooltip += "invoice management"
+        elif widget == self.main_window.view_existing_client_page:
+            back_tooltip += "client manager"
+        elif widget == self.main_window.select_client_type_page:
+            back_tooltip += "client type selection"
+        else:
+            back_tooltip += "previous screen"
+        
+        # Find and update the back button tooltip
+        for i in range(self.layout().count()):
+            item = self.layout().itemAt(i)
+            if isinstance(item, QHBoxLayout):  # This should be our button layout
+                for j in range(item.count()):
+                    widget = item.itemAt(j).widget()
+                    if isinstance(widget, QPushButton) and widget.text() == "← Back":
+                        widget.setToolTip(back_tooltip)
+                        break
+                break
+
     def init_ui(self):
         layout = QVBoxLayout(self)
 
@@ -64,9 +91,8 @@ class CreateInvoiceWidget(QWidget):
         self.invoice_fields["Invoice Number"] = QLineEdit()
         self.invoice_fields["Invoice Number"].setPlaceholderText("Enter invoice number")
         
-        regenerate_btn = QPushButton("🔄")
+        regenerate_btn = QPushButton("🔄 Regenerate Number")
         regenerate_btn.setToolTip("Generate a new invoice number")
-        regenerate_btn.setMaximumWidth(30)  # Make the button compact
         regenerate_btn.clicked.connect(self.generate_invoice_number)
         
         invoice_number_layout.addWidget(self.invoice_fields["Invoice Number"])
@@ -114,11 +140,12 @@ class CreateInvoiceWidget(QWidget):
         # Totals Section
         layout.addWidget(self.init_totals_section())
 
-        # Add status label at the bottom
-        layout.addWidget(self.status_label)
-
         # Action Buttons
         button_layout = QHBoxLayout()
+        
+        back_btn = QPushButton("← Back")
+        back_btn.clicked.connect(self.go_back)
+        back_btn.setToolTip("Return to invoice management")
         
         save_draft_btn = QPushButton("💾 Save Draft")
         save_draft_btn.clicked.connect(self.save_draft)
@@ -132,15 +159,24 @@ class CreateInvoiceWidget(QWidget):
         create_btn.clicked.connect(self.save_invoice)
         create_btn.setToolTip("Save the invoice and generate the final PDF")
         
+        clear_btn = QPushButton("🗑️ Clear Form")
+        clear_btn.clicked.connect(self.confirm_clear_form)
+        clear_btn.setToolTip("Clear all fields and start over")
+        
         cancel_btn = QPushButton("❌ Cancel")
         cancel_btn.clicked.connect(self.cancel_invoice)
         
+        button_layout.addWidget(back_btn)
         button_layout.addWidget(save_draft_btn)
         button_layout.addWidget(preview_btn)
         button_layout.addWidget(create_btn)
+        button_layout.addWidget(clear_btn)
         button_layout.addWidget(cancel_btn)
         
         layout.addLayout(button_layout)
+
+        # Add status label at the bottom
+        layout.addWidget(self.status_label)
 
     def _add_labeled_input(self, label_text, layout):
         label = QLabel(label_text)
@@ -220,11 +256,11 @@ class CreateInvoiceWidget(QWidget):
                 'invoice_number': self.invoice_fields["Invoice Number"].text(),
                 'date': self.date_edit.date().toString("yyyy-MM-dd"),
                 'customer_id': self.selected_client_id,
-                'subtotal_amount': self.subtotal_label.text().replace('$', ''),
+                'subtotal_amount': self.subtotal_label.text().replace('$', '').strip(),
                 'discount_type': self.discount_type.currentText(),
-                'discount_value': self.discount_value.text(),
-                'discount_description': self.discount_description.text(),
-                'total_amount': self.total_label.text().replace('$', '')
+                'discount_value': self.discount_value.text().strip(),
+                'discount_description': self.discount_description.text().strip(),
+                'total_amount': self.total_label.text().replace('$', '').strip()
             }
 
             # Get line items
@@ -236,348 +272,203 @@ class CreateInvoiceWidget(QWidget):
                 line_item = {
                     'description': self.line_items_table.item(row, 0).text(),
                     'quantity': self.line_items_table.cellWidget(row, 1).value(),
-                    'unit_price': self.line_items_table.cellWidget(row, 2).text(),
+                    'unit_price': self.line_items_table.cellWidget(row, 2).text().strip(),
                     'discount_type': self.line_items_table.cellWidget(row, 3).currentText(),
-                    'discount_value': self.line_items_table.cellWidget(row, 4).text(),
-                    'discount_description': self.line_items_table.item(row, 5).text(),
-                    'total': self.line_items_table.item(row, 6).text().replace('$', '')
+                    'discount_value': self.line_items_table.cellWidget(row, 4).text().strip(),
+                    'discount_description': self.line_items_table.item(row, 5).text() if self.line_items_table.item(row, 5) else '',
+                    'total': self.line_items_table.item(row, 6).text().replace('$', '').strip()
                 }
                 line_items.append(line_item)
 
-            # Save to database
-            self.db.save_invoice(invoice_data, line_items)
+            # Check if we need to create a new customer
+            customer_data = None
+            email = self.client_info["Contact Email"].text().strip()
             
-            # Delete any existing draft for this invoice
-            try:
-                self.db.delete_invoice_draft(invoice_data['invoice_number'])
-            except Exception as draft_e:
-                # Log the error but don't stop the process since the invoice was saved successfully
-                print(f"Warning: Failed to delete draft after invoice creation: {str(draft_e)}")
+            if not self.selected_client_id:
+                # Double check if customer exists
+                client_id = self.db.get_customer_id_by_email(email)
+                if client_id:
+                    self.selected_client_id = client_id
+                    invoice_data['customer_id'] = client_id
+                else:
+                    # Prepare customer data for creation
+                    customer_data = {
+                        'business_name': self.client_info["Business Name"].text().strip(),
+                        'primary_email': email,
+                        'street_address': self.client_info["Street Address"].toPlainText().strip(),
+                        'primary_contact_name': self.client_info["Contact Name"].text().strip(),
+                        'primary_contact_phone': self.client_info["Phone Number"].text().strip(),
+                        'payment_terms_code': 'NET30'  # Default payment terms
+                    }
+
+            # Save everything in a single transaction
+            self.db.save_invoice_with_customer(invoice_data, line_items, customer_data)
             
-            QMessageBox.information(self, "Success", "Invoice created successfully!")
-            
-            # Ask user if they want to generate PDF now
+            # Ask if user wants to generate PDF
             reply = QMessageBox.question(
                 self,
                 "Generate PDF",
-                "Would you like to generate the PDF for this invoice now?",
+                f"Invoice {invoice_data['invoice_number']} has been created. Generate PDF now?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             
             if reply == QMessageBox.StandardButton.Yes:
-                self.create_pdf()
-            
-            self.return_to_main_menu()
+                # Get save location
+                filename, _ = QFileDialog.getSaveFileName(
+                    self,
+                    "Save Invoice PDF",
+                    os.path.join(PDF_DIR, f"{invoice_data['invoice_number']}.pdf"),
+                    "PDF Files (*.pdf)"
+                )
+                
+                if filename:  # User didn't cancel
+                    try:
+                        # Create the PDF
+                        self.create_pdf_at_path(filename)
+                        
+                        # Ask if user wants to open the PDF
+                        open_reply = QMessageBox.question(
+                            self,
+                            "Success",
+                            f"PDF has been created. Open now?",
+                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                        )
+                        
+                        if open_reply == QMessageBox.StandardButton.Yes:
+                            self.open_pdf_file(filename)
+                    except Exception as e:
+                        QMessageBox.critical(self, "Error", f"Failed to create PDF: {str(e)}")
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save invoice: {str(e)}")
 
-    def validate_fields(self):
-        """Validate all required fields before saving"""
-        # Validate invoice number
-        invoice_number = self.invoice_fields["Invoice Number"].text().strip()
-        if not invoice_number:
-            QMessageBox.warning(self, "Validation Error", "Please enter an invoice number.")
-            return False
-            
-        # Check if invoice number already exists
-        if self.db.invoice_number_exists(invoice_number):
-            QMessageBox.warning(
-                self, 
-                "Validation Error", 
-                "This invoice number already exists. Please use a different number or click the regenerate button."
-            )
-            return False
+    def create_pdf_at_path(self, filename):
+        """Create PDF at the specified path"""
+        # Create PDF
+        c = canvas.Canvas(filename, pagesize=LETTER)
+        width, height = LETTER
 
-        if not self.selected_client_id:
-            QMessageBox.warning(self, "Validation Error", "Please select a client first.")
-            return False
-            
-        if self.line_items_table.rowCount() == 0:
-            QMessageBox.warning(self, "Validation Error", "Please add at least one line item.")
-            return False
-            
-        for row in range(self.line_items_table.rowCount()):
-            if not self.line_items_table.item(row, 0) or not self.line_items_table.item(row, 0).text():
-                QMessageBox.warning(self, "Validation Error", f"Please enter a description for line item {row + 1}.")
-                return False
-                
-            try:
-                price = float(self.line_items_table.cellWidget(row, 2).text() or 0)
-                if price <= 0:
-                    QMessageBox.warning(self, "Validation Error", f"Please enter a valid price for line item {row + 1}.")
-                    return False
-            except ValueError:
-                QMessageBox.warning(self, "Validation Error", f"Invalid price format for line item {row + 1}.")
-                return False
-                
-        return True
+        # Add logo if available
+        if hasattr(self.main_window, 'settings') and 'logo_path' in self.main_window.settings:
+            logo_path = self.main_window.settings['logo_path']
+            if os.path.exists(logo_path):
+                c.drawImage(logo_path, width - 200, height - 60, width=150, preserveAspectRatio=True)
 
-    def cancel_invoice(self):
-        """Cache the current data and return to main menu"""
-        self.cache_invoice_data()
-        self.return_to_main_menu()
+        # Title
+        c.setFont("Helvetica-Bold", 24)
+        c.drawString(50, height - 50, "INVOICE")
 
-    def return_to_main_menu(self):
-        """Return to the main menu"""
-        self.main_window.stack.setCurrentIndex(0)
-
-    def cache_invoice_data(self):
-        """Cache the current invoice data before navigating away"""
-        self._cached_data = {
-            "Invoice Number": self.invoice_fields["Invoice Number"].text(),
-            "Date": self.date_edit.date(),
-            "Business Name": self.client_info["Business Name"].text(),
-            "Contact Email": self.client_info["Contact Email"].text(),
-            "Street Address": self.client_info["Street Address"].toPlainText(),
-            "Line Items": []
-        }
-
-        # Cache line items
-        for row in range(self.line_items_table.rowCount()):
-            if not self.line_items_table.item(row, 0):  # Skip empty rows
-                continue
-                
-            item = {
-                "Description": self.line_items_table.item(row, 0).text(),
-                "Quantity": self.line_items_table.cellWidget(row, 1).value(),
-                "Unit Price": self.line_items_table.cellWidget(row, 2).text(),
-                "Discount Type": self.line_items_table.cellWidget(row, 3).currentText(),
-                "Discount Value": self.line_items_table.cellWidget(row, 4).text(),
-                "Discount Description": self.line_items_table.item(row, 5).text(),
-                "Total": self.line_items_table.item(row, 6).text()
-            }
-            self._cached_data["Line Items"].append(item)
-
-    def restore_cached_data(self):
-        """Restore the previously cached invoice data"""
-        if not self._cached_data:
-            return
-
-        data = self._cached_data
-        self.invoice_fields["Invoice Number"].setText(data["Invoice Number"])
-        self.date_edit.setDate(data["Date"])
-        self.client_info["Business Name"].setText(data["Business Name"])
-        self.client_info["Contact Email"].setText(data["Contact Email"])
-        self.client_info["Street Address"].setPlainText(data["Street Address"])
-
-        # Clear existing line items
-        self.line_items_table.setRowCount(0)
-
-        # Restore line items
-        for item in data["Line Items"]:
-            row = self.line_items_table.rowCount()
-            self.line_items_table.insertRow(row)
-            
-            # Description
-            self.line_items_table.setItem(row, 0, QTableWidgetItem(item["Description"]))
-            
-            # Quantity
-            qty_spin = QSpinBox()
-            qty_spin.setMinimum(1)
-            qty_spin.setValue(item["Quantity"])
-            qty_spin.valueChanged.connect(self.update_totals)
-            self.line_items_table.setCellWidget(row, 1, qty_spin)
-            
-            # Unit Price
-            price_edit = QLineEdit()
-            price_edit.setText(str(item["Unit Price"]))
-            price_edit.textChanged.connect(self.update_totals)
-            self.line_items_table.setCellWidget(row, 2, price_edit)
-            
-            # Discount Type
-            discount_type = QComboBox()
-            discount_type.addItems(["NONE", "PERCENTAGE", "FIXED_AMOUNT"])
-            discount_type.setCurrentText(item["Discount Type"])
-            discount_type.currentTextChanged.connect(self.update_totals)
-            self.line_items_table.setCellWidget(row, 3, discount_type)
-            
-            # Discount Value
-            discount_value = QLineEdit()
-            discount_value.setText(item["Discount Value"])
-            discount_value.textChanged.connect(self.update_totals)
-            self.line_items_table.setCellWidget(row, 4, discount_value)
-            
-            # Discount Description
-            self.line_items_table.setItem(row, 5, QTableWidgetItem(item["Discount Description"]))
-            
-            # Total
-            total_item = QTableWidgetItem(item["Total"])
-            total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            self.line_items_table.setItem(row, 6, total_item)
-
-        self.update_totals()
-        self._cached_data = None
-
-    def clear_fields(self):
-        """Clear all form fields and reset to default state"""
-        # Clear invoice fields
-        for key, widget in self.invoice_fields.items():
-            if isinstance(widget, QTextEdit):
-                widget.clear()
-            elif isinstance(widget, QLineEdit):
-                widget.setText("")
-            elif key == "Date":
-                widget.setDate(QDate.currentDate())
-
-        # Clear client info
-        for widget in self.client_info.values():
-            if isinstance(widget, QTextEdit):
-                widget.clear()
-            elif isinstance(widget, QLineEdit):
-                widget.setText("")
-
-        # Clear line items
-        self.line_items_table.setRowCount(0)
-
-        # Reset totals
-        self.subtotal_label.setText(self.format_currency(0))
-        self.discount_type.setCurrentText("NONE")
-        self.discount_value.clear()
-        self.discount_description.clear()
-        self.discount_amount_label.setText(self.format_currency(0))
-        self.total_label.setText(self.format_currency(0))
-
-        # Generate new invoice number
-        self.generate_invoice_number()
-
-    def create_pdf(self):
-        # Validate fields
-        if not self.validate_fields():
-            return
-
-        # Get save location
-        filename, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Invoice PDF",
-            os.path.join(PDF_DIR, f"{self.invoice_fields['Invoice Number'].text()}.pdf"),
-            "PDF Files (*.pdf)"
-        )
-        
-        if not filename:
-            return
-
-        # Prepare data
-        fields = [
+        # Invoice details
+        y = height - 100
+        c.setFont("Helvetica-Bold", 12)
+        for label, value in [
             ("Invoice Number", self.invoice_fields["Invoice Number"].text()),
             ("Date", self.date_edit.date().toString("yyyy-MM-dd")),
             ("Business Name", self.client_info["Business Name"].text()),
             ("Contact Email", self.client_info["Contact Email"].text()),
             ("Street Address", self.client_info["Street Address"].toPlainText()),
+        ]:
+            c.drawString(50, y, f"{label}:")
+            c.setFont("Helvetica", 12)
+            
+            # Handle multiline text (like address)
+            if label == "Street Address":
+                for line in value.split('\n'):
+                    y -= 15
+                    c.drawString(200, y, line.strip())
+            else:
+                c.drawString(200, y, value)
+            
+            y -= 20
+            c.setFont("Helvetica-Bold", 12)
+
+        # Line items
+        y -= 20
+        c.drawString(50, y, "Line Items:")
+        y -= 30
+
+        # Table header
+        c.setFont("Helvetica-Bold", 10)
+        columns = [
+            (50, "Description"),
+            (300, "Quantity"),
+            (350, "Unit Price"),
+            (400, "Discount"),
+            (500, "Total")
         ]
+        for x, label in columns:
+            c.drawString(x, y, label)
 
+        # Table content
+        y -= 20
+        c.setFont("Helvetica", 10)
+        for row in range(self.line_items_table.rowCount()):
+            if y < 100:  # Start new page if near bottom
+                c.showPage()
+                y = height - 50
+                # Redraw header
+                c.setFont("Helvetica-Bold", 10)
+                for x, label in columns:
+                    c.drawString(x, y, label)
+                y -= 20
+                c.setFont("Helvetica", 10)
+
+            # Get line item data
+            desc = self.line_items_table.item(row, 0).text()
+            qty = str(self.line_items_table.cellWidget(row, 1).value())
+            unit_price = self.format_currency(self.line_items_table.cellWidget(row, 2).text())
+            
+            # Format discount info
+            discount_type = self.line_items_table.cellWidget(row, 3).currentText()
+            discount_value = self.line_items_table.cellWidget(row, 4).text()
+            if discount_type != "NONE" and discount_value:
+                if discount_type == "PERCENTAGE":
+                    discount_text = f"{discount_value}%"
+                elif discount_type == "FIXED_AMOUNT":
+                    discount_text = self.format_currency(discount_value)
+                else:  # BULK
+                    discount_text = f"Buy {discount_value}"
+            else:
+                discount_text = "NONE"
+            
+            total = self.line_items_table.item(row, 6).text()
+
+            # Draw line item
+            c.drawString(50, y, desc[:40] + "..." if len(desc) > 40 else desc)
+            c.drawString(300, y, qty)
+            c.drawString(350, y, unit_price)
+            c.drawString(400, y, discount_text)
+            c.drawString(500, y, total)
+            y -= 15
+
+        # Totals section
+        y -= 20
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(350, y, "Subtotal:")
+        c.drawString(500, y, self.subtotal_label.text())
+        
+        y -= 20
+        if self.discount_type.currentText() != "NONE":
+            c.drawString(350, y, "Discount:")
+            c.drawString(500, y, self.discount_amount_label.text())
+            y -= 20
+        
+        c.drawString(350, y, "Final Total:")
+        c.drawString(500, y, self.total_label.text())
+
+        c.save()
+        QMessageBox.information(self, "Success", f"PDF saved to:\n{filename}")
+        
+    def open_pdf_file(self, filepath):
+        """Open a PDF file using the system's default PDF viewer"""
         try:
-            # Create PDF
-            c = canvas.Canvas(filename, pagesize=LETTER)
-            width, height = LETTER
-
-            # Add logo if available
-            if hasattr(self.main_window, 'settings') and 'logo_path' in self.main_window.settings:
-                logo_path = self.main_window.settings['logo_path']
-                if os.path.exists(logo_path):
-                    c.drawImage(logo_path, width - 200, height - 60, width=150, preserveAspectRatio=True)
-
-            # Title
-            c.setFont("Helvetica-Bold", 24)
-            c.drawString(50, height - 50, "INVOICE")
-
-            # Invoice details
-            y = height - 100
-            c.setFont("Helvetica-Bold", 12)
-            for label, value in fields:
-                c.drawString(50, y, f"{label}:")
-                c.setFont("Helvetica", 12)
-                
-                # Handle multiline text (like address)
-                if label == "Street Address":
-                    for line in value.split('\n'):
-                        y -= 15
-                        c.drawString(200, y, line.strip())
-                else:
-                    c.drawString(200, y, value)
-                
-                y -= 20
-                c.setFont("Helvetica-Bold", 12)
-
-            # Line items
-            y -= 20
-            c.drawString(50, y, "Line Items:")
-            y -= 30
-
-            # Table header
-            c.setFont("Helvetica-Bold", 10)
-            columns = [
-                (50, "Description"),
-                (300, "Quantity"),
-                (350, "Unit Price"),
-                (400, "Discount"),
-                (500, "Total")
-            ]
-            for x, label in columns:
-                c.drawString(x, y, label)
-
-            # Table content
-            y -= 20
-            c.setFont("Helvetica", 10)
-            for row in range(self.line_items_table.rowCount()):
-                if y < 100:  # Start new page if near bottom
-                    c.showPage()
-                    y = height - 50
-                    # Redraw header
-                    c.setFont("Helvetica-Bold", 10)
-                    for x, label in columns:
-                        c.drawString(x, y, label)
-                    y -= 20
-                    c.setFont("Helvetica", 10)
-
-                # Get line item data
-                desc = self.line_items_table.item(row, 0).text()
-                qty = str(self.line_items_table.cellWidget(row, 1).value())
-                unit_price = self.format_currency(self.line_items_table.cellWidget(row, 2).text())
-                
-                # Format discount info
-                discount_type = self.line_items_table.cellWidget(row, 3).currentText()
-                discount_value = self.line_items_table.cellWidget(row, 4).text()
-                if discount_type != "NONE" and discount_value:
-                    if discount_type == "PERCENTAGE":
-                        discount_text = f"{discount_value}%"
-                    elif discount_type == "FIXED_AMOUNT":
-                        discount_text = self.format_currency(discount_value)
-                    else:  # BULK
-                        discount_text = f"Buy {discount_value}"
-                else:
-                    discount_text = "NONE"
-                
-                total = self.line_items_table.item(row, 6).text()
-
-                # Draw line item
-                c.drawString(50, y, desc[:40] + "..." if len(desc) > 40 else desc)
-                c.drawString(300, y, qty)
-                c.drawString(350, y, unit_price)
-                c.drawString(400, y, discount_text)
-                c.drawString(500, y, total)
-                y -= 15
-
-            # Totals section
-            y -= 20
-            c.setFont("Helvetica-Bold", 12)
-            c.drawString(350, y, "Subtotal:")
-            c.drawString(500, y, self.subtotal_label.text())
-            
-            y -= 20
-            if self.discount_type.currentText() != "NONE":
-                c.drawString(350, y, "Discount:")
-                c.drawString(500, y, self.discount_amount_label.text())
-                y -= 20
-            
-            c.drawString(350, y, "Final Total:")
-            c.drawString(500, y, self.total_label.text())
-
-            c.save()
-            QMessageBox.information(self, "Success", f"PDF saved to:\n{filename}")
-            
+            if os.name == 'nt':  # Windows
+                os.startfile(filepath)
+            else:  # macOS and Linux
+                import subprocess
+                subprocess.run(['open' if sys.platform == 'darwin' else 'xdg-open', filepath])
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to create PDF: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to open PDF: {str(e)}")
 
     def update_term_description(self):
         term_code = self.payment_terms_dropdown.currentText()
@@ -890,7 +781,7 @@ class CreateInvoiceWidget(QWidget):
         self.line_items_table.setItem(row, 6, total_item)
 
     def handle_client_email_change(self):
-        """Handle client email changes and update selected_client_id"""
+        """Handle client email changes - only load existing customers, don't create new ones"""
         email = self.client_info["Contact Email"].text().strip()
         if not email:
             self.selected_client_id = None
@@ -908,25 +799,17 @@ class CreateInvoiceWidget(QWidget):
                 self.client_info["Contact Name"].setText(client_info.get('primary_contact_name', ''))
                 self.client_info["Phone Number"].setText(client_info.get('primary_contact_phone', ''))
                 self.client_info["Street Address"].setPlainText(client_info.get('street_address', ''))
+                
+                # Show a message that we found an existing client
+                QMessageBox.information(
+                    self,
+                    "Existing Client Found",
+                    f"Found existing client with email {email}.\nTheir information has been loaded into the form."
+                )
         else:
-            # No existing client found - create new one
-            try:
-                client_data = {
-                    'business_name': self.client_info["Business Name"].text().strip(),
-                    'primary_email': email,
-                    'street_address': self.client_info["Street Address"].toPlainText().strip(),
-                    'primary_contact_name': self.client_info["Contact Name"].text().strip(),
-                    'primary_contact_phone': self.client_info["Phone Number"].text().strip(),
-                    'secondary_contact_name': '',
-                    'secondary_email': '',
-                    'secondary_contact_phone': '',
-                    'payment_terms_code': 'NET30'  # Default payment terms
-                }
-                self.selected_client_id = self.db.create_new_client(client_data)
-            except Exception as e:
-                QMessageBox.warning(self, "Error", f"Failed to create new client: {str(e)}")
-                self.selected_client_id = None
-    
+            # No existing client found - will be created when invoice is saved
+            self.selected_client_id = None
+
     def save_draft(self):
         """Save the current invoice as a draft"""
         # Validate basic fields
@@ -967,16 +850,21 @@ class CreateInvoiceWidget(QWidget):
             # Save to database
             self.db.save_invoice_draft(draft_data)
             
-            # Show a temporary status message
-            status_msg = QMessageBox(self)
-            status_msg.setIcon(QMessageBox.Icon.Information)
-            status_msg.setText("Draft saved successfully!")
-            status_msg.setWindowTitle("Success")
-            status_msg.setStandardButtons(QMessageBox.StandardButton.NoButton)
-            status_msg.show()
+            # Show success message with OK button
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText("Draft saved successfully!")
+            msg.setWindowTitle("Success")
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
             
-            # Auto-close the message after 1.5 seconds
-            QTimer.singleShot(1500, status_msg.close)
+            # Create a timer to auto-close the message
+            close_timer = QTimer()
+            close_timer.setSingleShot(True)
+            close_timer.timeout.connect(msg.close)
+            close_timer.start(2000)  # Auto-close after 2 seconds
+            
+            # Show the message box
+            msg.exec()
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save draft: {str(e)}")
@@ -1044,4 +932,183 @@ class CreateInvoiceWidget(QWidget):
         """Auto-save when closing the window"""
         self.auto_save()
         super().closeEvent(event)
+
+    def confirm_clear_form(self):
+        """Ask for confirmation before clearing the form"""
+        reply = QMessageBox.question(
+            self,
+            "Confirm Clear",
+            "Are you sure you want to clear all fields? This cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No  # Default to No to prevent accidental clearing
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.clear_fields()
+            self.generate_invoice_number()  # Generate a new invoice number
+            QMessageBox.information(self, "Success", "Form has been cleared.")
+
+    def go_back(self):
+        """Return to the previous window"""
+        # Cache the current data before navigating away
+        self.cache_invoice_data()
+        # Go back to wherever we came from, defaulting to invoice management if not set
+        if self.previous_widget:
+            self.main_window.stack.setCurrentWidget(self.previous_widget)
+        else:
+            self.main_window.stack.setCurrentWidget(self.main_window.find_invoice_page)
+
+    def open_pdf(self):
+        """Open the PDF for the current invoice number"""
+        invoice_number = self.invoice_fields["Invoice Number"].text()
+        pdf_path = os.path.join(PDF_DIR, f"{invoice_number}.pdf")
+        
+        if not os.path.exists(pdf_path):
+            reply = QMessageBox.question(
+                self,
+                "PDF Not Found",
+                "PDF hasn't been generated yet. Would you like to generate it now?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.create_pdf()
+            return
+            
+        try:
+            # Use the default system PDF viewer
+            if os.name == 'nt':  # Windows
+                os.startfile(pdf_path)
+            else:  # macOS and Linux
+                import subprocess
+                subprocess.run(['open' if sys.platform == 'darwin' else 'xdg-open', pdf_path])
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to open PDF: {str(e)}")
+    
+    def create_pdf(self, exclude_number_check=False):
+        """Handle creating and saving a PDF file"""
+        # Validate fields, but skip validation if we just created the invoice
+        if not exclude_number_check and not self.validate_fields():
+            return
+
+        # Get save location
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Invoice PDF",
+            os.path.join(PDF_DIR, f"{self.invoice_fields['Invoice Number'].text()}.pdf"),
+            "PDF Files (*.pdf)"
+        )
+        
+        if filename:  # User didn't cancel
+            try:
+                # Create the PDF
+                self.create_pdf_at_path(filename)
+                
+                # Ask if user wants to open the PDF
+                reply = QMessageBox.question(
+                    self,
+                    "Success",
+                    f"PDF has been created. Open now?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                
+                if reply == QMessageBox.StandardButton.Yes:
+                    self.open_pdf_file(filename)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to create PDF: {str(e)}")
+    
+    def cancel_invoice(self):
+        """Cache the current data and return to main menu"""
+        self.cache_invoice_data()
+        self.return_to_main_menu()
+
+    def return_to_main_menu(self):
+        """Return to the main menu"""
+        self.main_window.stack.setCurrentIndex(0)
+
+    def cache_invoice_data(self):
+        """Cache the current invoice data before navigating away"""
+        self._cached_data = {
+            "Invoice Number": self.invoice_fields["Invoice Number"].text(),
+            "Date": self.date_edit.date(),
+            "Business Name": self.client_info["Business Name"].text(),
+            "Contact Email": self.client_info["Contact Email"].text(),
+            "Street Address": self.client_info["Street Address"].toPlainText(),
+            "Line Items": []
+        }
+
+        # Cache line items
+        for row in range(self.line_items_table.rowCount()):
+            if not self.line_items_table.item(row, 0):  # Skip empty rows
+                continue
+                
+            item = {
+                "Description": self.line_items_table.item(row, 0).text(),
+                "Quantity": self.line_items_table.cellWidget(row, 1).value(),
+                "Unit Price": self.line_items_table.cellWidget(row, 2).text(),
+                "Discount Type": self.line_items_table.cellWidget(row, 3).currentText(),
+                "Discount Value": self.line_items_table.cellWidget(row, 4).text(),
+                "Discount Description": self.line_items_table.item(row, 5).text() if self.line_items_table.item(row, 5) else "",
+                "Total": self.line_items_table.item(row, 6).text()
+            }
+            self._cached_data["Line Items"].append(item)
+
+    def restore_cached_data(self):
+        """Restore the previously cached invoice data"""
+        if not self._cached_data:
+            return
+
+        data = self._cached_data
+        self.invoice_fields["Invoice Number"].setText(data["Invoice Number"])
+        self.date_edit.setDate(data["Date"])
+        self.client_info["Business Name"].setText(data["Business Name"])
+        self.client_info["Contact Email"].setText(data["Contact Email"])
+        self.client_info["Street Address"].setPlainText(data["Street Address"])
+
+        # Clear existing line items
+        self.line_items_table.setRowCount(0)
+
+        # Restore line items
+        for item in data["Line Items"]:
+            row = self.line_items_table.rowCount()
+            self.line_items_table.insertRow(row)
+            
+            # Description
+            self.line_items_table.setItem(row, 0, QTableWidgetItem(item["Description"]))
+            
+            # Quantity
+            qty_spin = QSpinBox()
+            qty_spin.setMinimum(1)
+            qty_spin.setValue(item["Quantity"])
+            qty_spin.valueChanged.connect(self.update_totals)
+            self.line_items_table.setCellWidget(row, 1, qty_spin)
+            
+            # Unit Price
+            price_edit = QLineEdit()
+            price_edit.setText(str(item["Unit Price"]))
+            price_edit.textChanged.connect(self.update_totals)
+            self.line_items_table.setCellWidget(row, 2, price_edit)
+            
+            # Discount Type
+            discount_type = QComboBox()
+            discount_type.addItems(["NONE", "PERCENTAGE", "FIXED_AMOUNT"])
+            discount_type.setCurrentText(item["Discount Type"])
+            discount_type.currentTextChanged.connect(self.update_totals)
+            self.line_items_table.setCellWidget(row, 3, discount_type)
+            
+            # Discount Value
+            discount_value = QLineEdit()
+            discount_value.setText(item["Discount Value"])
+            discount_value.textChanged.connect(self.update_totals)
+            self.line_items_table.setCellWidget(row, 4, discount_value)
+            
+            # Discount Description
+            self.line_items_table.setItem(row, 5, QTableWidgetItem(item["Discount Description"]))
+            
+            # Total
+            total_item = QTableWidgetItem(item["Total"])
+            total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.line_items_table.setItem(row, 6, total_item)
+
+        self.update_totals()
+        self._cached_data = None
     

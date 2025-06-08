@@ -99,4 +99,5 @@ class FindExistingClientWidget(QWidget):
         invoice_form.invoice_fields["Business Name"].setText(client_data[1])
         invoice_form.invoice_fields["Contact Email"].setText(client_data[2] or "")  # Primary Email
         invoice_form.invoice_fields["Street Address"].setPlainText(client_data[3] or "")
+        invoice_form.set_previous_widget(self)
         self.main_window.stack.setCurrentWidget(invoice_form)

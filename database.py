@@ -178,11 +178,44 @@ class Database:
         result = cursor.fetchone()
         return result[0] if result else None
 
-    def save_invoice(self, invoice_data, line_items):
-        """Save invoice and its line items to the database"""
+    def save_invoice_with_customer(self, invoice_data, line_items, customer_data=None):
+        """Save invoice and optionally create a new customer in a single transaction.
+        
+        Args:
+            invoice_data: Dictionary containing invoice details
+            line_items: List of line items for the invoice
+            customer_data: Optional dictionary containing customer details. If provided,
+                         a new customer will be created before saving the invoice.
+        """
         cursor = self.conn.cursor()
-
+        
         try:
+            # Start transaction
+            cursor.execute("BEGIN TRANSACTION")
+            
+            # Create customer if needed
+            if customer_data:
+                cursor.execute("""
+                    INSERT INTO customers (
+                        business_name, primary_email, street_address,
+                        primary_contact_name, primary_contact_phone,
+                        secondary_contact_name, secondary_email,
+                        secondary_contact_phone, payment_terms_code,
+                        date_created
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (
+                    customer_data['business_name'],
+                    customer_data['primary_email'],
+                    customer_data['street_address'],
+                    customer_data['primary_contact_name'],
+                    customer_data['primary_contact_phone'],
+                    customer_data.get('secondary_contact_name', ''),
+                    customer_data.get('secondary_email', ''),
+                    customer_data.get('secondary_contact_phone', ''),
+                    customer_data.get('payment_terms_code', 'NET30')
+                ))
+                invoice_data['customer_id'] = cursor.lastrowid
+            
             # Insert invoice
             cursor.execute("""
                 INSERT OR REPLACE INTO invoices (
@@ -225,12 +258,19 @@ class Database:
                     item['total']
                 ))
 
+            # Delete draft only after everything else succeeds
+            cursor.execute("DELETE FROM invoice_drafts WHERE invoice_number = ?", 
+                         (invoice_data['invoice_number'],))
+
+            # Commit transaction
             self.conn.commit()
             return invoice_id
 
         except Exception as e:
             self.conn.rollback()
             raise Exception(f"Database error: {str(e)}")
+        finally:
+            cursor.close()
 
     def find_invoice(self, invoice_number):
         cursor = self.conn.cursor()
@@ -538,23 +578,16 @@ class Database:
             cursor.close()
 
     def invoice_number_exists(self, invoice_number):
-        """Check if an invoice number already exists in either invoices or drafts"""
+        """Check if an invoice number already exists in finalized invoices.
+        
+        Args:
+            invoice_number: The invoice number to check
+        """
         cursor = self.conn.cursor()
         try:
-            # Check in invoices table
             cursor.execute("""
                 SELECT COUNT(*) 
                 FROM invoices 
-                WHERE invoice_number = ?
-            """, (invoice_number,))
-            
-            if cursor.fetchone()[0] > 0:
-                return True
-                
-            # Check in drafts table
-            cursor.execute("""
-                SELECT COUNT(*) 
-                FROM invoice_drafts 
                 WHERE invoice_number = ?
             """, (invoice_number,))
             
@@ -564,3 +597,32 @@ class Database:
             raise Exception(f"Failed to check invoice number: {str(e)}")
         finally:
             cursor.close()
+
+    def find_clients_by_email(self, email):
+        """Find all clients that match the given email in either primary or secondary email fields"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT id, business_name, primary_email, street_address,
+                   primary_contact_name, primary_contact_phone,
+                   secondary_contact_name, secondary_email,
+                   secondary_contact_phone, payment_terms_code
+            FROM customers 
+            WHERE primary_email LIKE ? OR secondary_email LIKE ?
+            ORDER BY business_name ASC
+        """, (f"%{email}%", f"%{email}%"))
+        
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'id': row[0],
+                'business_name': row[1],
+                'primary_email': row[2],
+                'street_address': row[3],
+                'primary_contact_name': row[4],
+                'primary_contact_phone': row[5],
+                'secondary_contact_name': row[6],
+                'secondary_email': row[7],
+                'secondary_contact_phone': row[8],
+                'payment_terms_code': row[9]
+            })
+        return results

@@ -109,10 +109,14 @@ class DraftInvoicesWidget(QWidget):
             invoice_form.invoice_fields["Invoice Number"].setText(draft_data['invoice_number'])
             invoice_form.date_edit.setDate(QDate.fromString(draft_data['date'], "yyyy-MM-dd"))
             
-            # Set client info
+            # Set client info without triggering email change handler
             invoice_form.client_info["Business Name"].setText(draft_data['business_name'])
             invoice_form.client_info["Contact Name"].setText(draft_data['contact_name'])
+            # Temporarily disconnect the email change signal
+            invoice_form.client_info["Contact Email"].textChanged.disconnect()
             invoice_form.client_info["Contact Email"].setText(draft_data['contact_email'])
+            # Reconnect the signal
+            invoice_form.client_info["Contact Email"].textChanged.connect(invoice_form.handle_client_email_change)
             invoice_form.client_info["Phone Number"].setText(draft_data['phone_number'])
             invoice_form.client_info["Street Address"].setPlainText(draft_data['street_address'])
             invoice_form.selected_client_id = draft_data['customer_id']
@@ -156,7 +160,8 @@ class DraftInvoicesWidget(QWidget):
             # Update totals
             invoice_form.update_totals()
             
-            # Switch to create invoice form
+            # Set previous widget and switch to create invoice form
+            invoice_form.set_previous_widget(self)
             self.main_window.stack.setCurrentWidget(invoice_form)
             
         except Exception as e:
