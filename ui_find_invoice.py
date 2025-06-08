@@ -119,10 +119,16 @@ class FindInvoiceWidget(QWidget):
         dialog = ChangeStatusDialog(self)
         if dialog.exec():
             new_status = dialog.get_selected_status()
-            invoice_number = self.invoice_data["Invoice Number"]
-            self.db.update_invoice_status(invoice_number, new_status)
-            self.fields["Status"].setText(new_status)
-            QMessageBox.information(self, "Success", f"Invoice status updated to: {new_status}")
+            invoice_number = self.invoice_data["invoice_number"]
+            try:
+                self.db.update_invoice_status(invoice_number, new_status)
+                self.fields["Status"].setText(new_status)
+                QMessageBox.information(self, "Success", f"Invoice status updated to: {new_status}")
+                
+                # Update our local data to reflect the change
+                self.invoice_data["status"] = new_status
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to update invoice status: {str(e)}")
 
     def find_invoice(self):
         invoice_number = self.invoice_id_input.text().strip()
@@ -130,29 +136,15 @@ class FindInvoiceWidget(QWidget):
             QMessageBox.warning(self, "No Input", "Please enter an invoice number.")
             return
 
-        self.invoice_data = self.db.find_invoice(invoice_number)
-        if not self.invoice_data:
-            QMessageBox.warning(self, "Not Found", "No invoice found with that number.")
-            return
+        try:
+            self.invoice_data = self.db.view_invoice(invoice_number)
+            if not self.invoice_data:
+                QMessageBox.warning(self, "Not Found", "No invoice found with that number.")
+                return
 
-        # Display invoice data
-        self.fields["Invoice Number"].setText(self.invoice_data["Invoice Number"])
-        self.fields["Invoice Date"].setText(self.invoice_data["Date"])
-        self.fields["Business Name"].setText(self.invoice_data["Business Name"])
-        self.fields["Contact Email"].setText(self.invoice_data["Contact Email"])
-        self.fields["Street Address"].setText(self.invoice_data["Street Address"])
-        self.fields["Total Amount"].setText(self.invoice_data["Total Amount"])
-        self.fields["Status"].setText(self.invoice_data["Status"])
-
-        # Display line items
-        self.table.setRowCount(0)
-        for item in self.invoice_data["Line Items"]:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(item["Description"]))
-            self.table.setItem(row, 1, QTableWidgetItem(str(item["Quantity"])))
-            self.table.setItem(row, 2, QTableWidgetItem(f"${item['Unit Price']}"))
-            self.table.setItem(row, 3, QTableWidgetItem(f"${item['Total']}"))
+            self.display_invoice_data(self.invoice_data)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load invoice: {str(e)}")
 
     def return_to_main_menu(self):
         self.main_window.stack.setCurrentIndex(0)
@@ -322,7 +314,7 @@ class FindInvoiceWidget(QWidget):
         if not invoice_data:
             return
 
-        # Display invoice data
+        # Display invoice data using correct case from database
         self.fields["Invoice Number"].setText(invoice_data["invoice_number"])
         self.fields["Invoice Date"].setText(invoice_data["date"])
         self.fields["Business Name"].setText(invoice_data["business_name"])
