@@ -149,14 +149,20 @@ class ManageInvoicesWidget(QWidget):
         if selected_row >= 0:
             invoice_number = self.table.item(selected_row, 0).text()
             
+            # Get the invoice data first
+            invoice_data = self.db.view_invoice(invoice_number)
+            if not invoice_data:
+                QMessageBox.warning(self, "Error", "Failed to load invoice data.")
+                return
+                
             # Create and show the FindInvoiceWidget
             find_invoice_widget = FindInvoiceWidget(self.main_window)
+            find_invoice_widget.invoice_data = invoice_data  # Set the data first
+            find_invoice_widget.display_invoice_data(invoice_data)  # Display it
+            
+            # Add and show the widget
             self.main_window.stack.addWidget(find_invoice_widget)
             self.main_window.stack.setCurrentWidget(find_invoice_widget)
-            
-            # Automatically search for the selected invoice
-            find_invoice_widget.invoice_id_input.setText(invoice_number)
-            find_invoice_widget.find_invoice()
 
     def return_to_main_menu(self):
         self.main_window.stack.setCurrentIndex(0) 

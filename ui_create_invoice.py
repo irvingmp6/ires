@@ -260,7 +260,8 @@ class CreateInvoiceWidget(QWidget):
                 'discount_type': self.discount_type.currentText(),
                 'discount_value': self.discount_value.text().strip(),
                 'discount_description': self.discount_description.text().strip(),
-                'total_amount': self.total_label.text().replace('$', '').strip()
+                'total_amount': self.total_label.text().replace('$', '').strip(),
+                'status': 'Active'  # Use Active status for new invoices
             }
 
             # Get line items
@@ -302,7 +303,10 @@ class CreateInvoiceWidget(QWidget):
                     }
 
             # Save everything in a single transaction
-            self.db.save_invoice_with_customer(invoice_data, line_items, customer_data)
+            invoice_id = self.db.save_invoice_with_customer(invoice_data, line_items, customer_data)
+            
+            if not invoice_id:
+                raise Exception("Failed to save invoice - no invoice ID returned")
             
             # Ask if user wants to generate PDF
             reply = QMessageBox.question(
@@ -339,8 +343,12 @@ class CreateInvoiceWidget(QWidget):
                     except Exception as e:
                         QMessageBox.critical(self, "Error", f"Failed to create PDF: {str(e)}")
             
+            # Clear the form and generate new invoice number for next invoice
+            self.clear_fields()
+            
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save invoice: {str(e)}")
+            return None
 
     def create_pdf_at_path(self, filename):
         """Create PDF at the specified path"""
@@ -1111,4 +1119,94 @@ class CreateInvoiceWidget(QWidget):
 
         self.update_totals()
         self._cached_data = None
+    
+    def validate_fields(self):
+        """Validate all required fields before saving"""
+        # Validate invoice number
+        invoice_number = self.invoice_fields["Invoice Number"].text().strip()
+        if not invoice_number:
+            QMessageBox.warning(self, "Validation Error", "Please enter an invoice number.")
+            return False
+            
+        # Check if invoice number already exists in finalized invoices
+        if self.db.invoice_number_exists(invoice_number):
+            QMessageBox.warning(
+                self,
+                "Validation Error", 
+                "This invoice number already exists. Please use a different number or click the regenerate button."
+            )
+            return False
+
+        # Validate required fields
+        if not self.client_info["Business Name"].text().strip():
+            QMessageBox.warning(self, "Validation Error", "Please enter a business name.")
+            return False
+
+        if not self.client_info["Contact Email"].text().strip():
+            QMessageBox.warning(self, "Validation Error", "Please enter a contact email.")
+            return False
+
+        if not self.client_info["Contact Name"].text().strip():
+            QMessageBox.warning(self, "Validation Error", "Please enter a contact name.")
+            return False
+
+        if not self.client_info["Phone Number"].text().strip():
+            QMessageBox.warning(self, "Validation Error", "Please enter a phone number.")
+            return False
+
+        if not self.client_info["Street Address"].toPlainText().strip():
+            QMessageBox.warning(self, "Validation Error", "Please enter a street address.")
+            return False
+            
+        if self.line_items_table.rowCount() == 0:
+            QMessageBox.warning(self, "Validation Error", "Please add at least one line item.")
+            return False
+            
+        for row in range(self.line_items_table.rowCount()):
+            if not self.line_items_table.item(row, 0) or not self.line_items_table.item(row, 0).text():
+                QMessageBox.warning(self, "Validation Error", f"Please enter a description for line item {row + 1}.")
+                return False
+                
+            try:
+                price = float(self.line_items_table.cellWidget(row, 2).text() or 0)
+                if price <= 0:
+                    QMessageBox.warning(self, "Validation Error", f"Please enter a valid price for line item {row + 1}.")
+                    return False
+            except ValueError:
+                QMessageBox.warning(self, "Validation Error", f"Invalid price format for line item {row + 1}.")
+                return False
+                
+        return True
+    
+    def clear_fields(self):
+        """Clear all form fields and reset to default state"""
+        # Clear invoice fields
+        for key, widget in self.invoice_fields.items():
+            if isinstance(widget, QTextEdit):
+                widget.clear()
+            elif isinstance(widget, QLineEdit):
+                widget.setText("")
+            elif key == "Date":
+                widget.setDate(QDate.currentDate())
+
+        # Clear client info
+        for widget in self.client_info.values():
+            if isinstance(widget, QTextEdit):
+                widget.clear()
+            elif isinstance(widget, QLineEdit):
+                widget.setText("")
+
+        # Clear line items
+        self.line_items_table.setRowCount(0)
+
+        # Reset totals
+        self.subtotal_label.setText(self.format_currency(0))
+        self.discount_type.setCurrentText("NONE")
+        self.discount_value.clear()
+        self.discount_description.clear()
+        self.discount_amount_label.setText(self.format_currency(0))
+        self.total_label.setText(self.format_currency(0))
+
+        # Generate new invoice number
+        self.generate_invoice_number()
     

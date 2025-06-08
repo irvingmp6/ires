@@ -103,7 +103,9 @@ class DraftInvoicesWidget(QWidget):
 
             # Load data into create invoice form
             invoice_form = self.main_window.invoice_page
-            invoice_form.clear_fields()
+            
+            # Clear line items table without clearing other fields
+            invoice_form.line_items_table.setRowCount(0)
             
             # Set invoice fields
             invoice_form.invoice_fields["Invoice Number"].setText(draft_data['invoice_number'])

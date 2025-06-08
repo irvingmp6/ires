@@ -317,3 +317,27 @@ class FindInvoiceWidget(QWidget):
         c.save()
         QMessageBox.information(self, "Success", f"PDF saved to:\n{save_path}")
 
+    def display_invoice_data(self, invoice_data):
+        """Display invoice data in the form without modifying the database."""
+        if not invoice_data:
+            return
+
+        # Display invoice data
+        self.fields["Invoice Number"].setText(invoice_data["invoice_number"])
+        self.fields["Invoice Date"].setText(invoice_data["date"])
+        self.fields["Business Name"].setText(invoice_data["business_name"])
+        self.fields["Contact Email"].setText(invoice_data["primary_email"])
+        self.fields["Street Address"].setText(invoice_data["street_address"])
+        self.fields["Total Amount"].setText(invoice_data["total_amount"])
+        self.fields["Status"].setText(invoice_data["status"])
+
+        # Display line items
+        self.table.setRowCount(0)
+        for item in invoice_data["Line Items"]:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QTableWidgetItem(item["Description"]))
+            self.table.setItem(row, 1, QTableWidgetItem(str(item["Quantity"])))
+            self.table.setItem(row, 2, QTableWidgetItem(f"${item['Unit Price']}"))
+            self.table.setItem(row, 3, QTableWidgetItem(f"${item['Total']}"))
+

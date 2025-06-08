@@ -12,6 +12,9 @@ class Database:
     def create_tables(self):
         cursor = self.conn.cursor()
 
+        # Enable foreign key support
+        cursor.execute("PRAGMA foreign_keys = ON")
+
         # Drop existing tables in reverse order of dependencies
         cursor.execute("DROP TABLE IF EXISTS line_items")
         cursor.execute("DROP TABLE IF EXISTS invoices")
@@ -52,7 +55,7 @@ class Database:
                     'Paid - Fully Reconciled'
                 )
             ),
-            FOREIGN KEY (customer_id) REFERENCES customers(id)
+            FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT
         )""")
 
         cursor.execute("""
@@ -66,7 +69,7 @@ class Database:
             discount_value TEXT,
             discount_description TEXT,
             total TEXT,
-            FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+            FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
         )""")
 
         cursor.execute("""
@@ -218,11 +221,11 @@ class Database:
             
             # Insert invoice
             cursor.execute("""
-                INSERT OR REPLACE INTO invoices (
+                INSERT INTO invoices (
                     invoice_number, date, customer_id, 
                     subtotal_amount, discount_type, discount_value,
                     discount_description, total_amount, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Active')
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 invoice_data['invoice_number'],
                 invoice_data['date'],
@@ -231,15 +234,13 @@ class Database:
                 invoice_data['discount_type'],
                 invoice_data['discount_value'],
                 invoice_data['discount_description'],
-                invoice_data['total_amount']
+                invoice_data['total_amount'],
+                invoice_data.get('status', 'Active')  # Use provided status or default to 'Active'
             ))
             
             invoice_id = cursor.lastrowid
 
-            # Delete old line items (if any)
-            cursor.execute("DELETE FROM line_items WHERE invoice_id = ?", (invoice_id,))
-
-            # Insert line items
+            # Insert line items (no need to delete old ones since this is a new invoice)
             for item in line_items:
                 cursor.execute("""
                     INSERT INTO line_items (
@@ -257,53 +258,108 @@ class Database:
                     item['discount_description'],
                     item['total']
                 ))
-
-            # Delete draft only after everything else succeeds
-            cursor.execute("DELETE FROM invoice_drafts WHERE invoice_number = ?", 
-                         (invoice_data['invoice_number'],))
-
+            
             # Commit transaction
             self.conn.commit()
             return invoice_id
-
+            
         except Exception as e:
+            # Rollback on error
             self.conn.rollback()
-            raise Exception(f"Database error: {str(e)}")
-        finally:
-            cursor.close()
+            raise e
 
     def find_invoice(self, invoice_number):
+        """Find an invoice by its number and return all its details."""
         cursor = self.conn.cursor()
-        cursor.execute("""
-            SELECT i.id, i.invoice_number, i.date, i.total_amount, i.status,
-                c.business_name, c.primary_email, c.street_address
-            FROM invoices i
-            JOIN customers c ON i.customer_id = c.id
-            WHERE i.invoice_number = ?
-        """, (invoice_number,))
-        result = cursor.fetchone()
-        if not result:
+        
+        try:
+            # Get invoice details
+            cursor.execute("""
+                SELECT i.*, c.business_name, c.primary_email, c.street_address
+                FROM invoices i
+                JOIN customers c ON i.customer_id = c.id
+                WHERE i.invoice_number = ?
+            """, (invoice_number,))
+            
+            invoice = cursor.fetchone()
+            if not invoice:
+                return None
+                
+            # Convert to dictionary
+            invoice_dict = dict(invoice)
+            
+            # Get line items
+            cursor.execute("""
+                SELECT short_description as Description, 
+                       quantity as Quantity,
+                       unit_price as "Unit Price",
+                       discount_type as "Discount Type",
+                       discount_value as "Discount Value",
+                       discount_description as "Discount Description",
+                       total as Total
+                FROM line_items 
+                WHERE invoice_id = ?
+            """, (invoice['id'],))
+            
+            line_items = [dict(row) for row in cursor.fetchall()]
+            invoice_dict['Line Items'] = line_items
+            
+            return invoice_dict
+            
+        except Exception as e:
+            print(f"Error finding invoice: {e}")
             return None
 
-        invoice = {
-            "id": result[0],
-            "Invoice Number": result[1],
-            "Date": result[2],
-            "Total Amount": result[3],
-            "Status": result[4],
-            "Business Name": result[5],
-            "Contact Email": result[6],
-            "Street Address": result[7],
-            "Line Items": []
-        }
-
-        cursor.execute("""
-            SELECT short_description, quantity, unit_price, total
-            FROM line_items WHERE invoice_id = ?
-        """, (invoice["id"],))
-
-        invoice["Line Items"] = [dict(zip(["Description", "Quantity", "Unit Price", "Total"], row)) for row in cursor.fetchall()]
-        return invoice
+    def view_invoice(self, invoice_number):
+        """View an invoice by its number without modifying it."""
+        cursor = self.conn.cursor()
+        
+        try:
+            # Start read-only transaction
+            cursor.execute("PRAGMA query_only = ON")
+            cursor.execute("BEGIN TRANSACTION")
+            
+            cursor.execute("""
+                SELECT i.*, c.business_name, c.primary_email, c.street_address
+                FROM invoices i
+                JOIN customers c ON i.customer_id = c.id
+                WHERE i.invoice_number = ?
+            """, (invoice_number,))
+            
+            invoice = cursor.fetchone()
+            if not invoice:
+                cursor.execute("ROLLBACK")
+                cursor.execute("PRAGMA query_only = OFF")
+                return None
+                
+            # Convert to dictionary
+            invoice_dict = dict(invoice)
+            
+            # Get line items
+            cursor.execute("""
+                SELECT short_description as Description, 
+                       quantity as Quantity,
+                       unit_price as "Unit Price",
+                       discount_type as "Discount Type",
+                       discount_value as "Discount Value",
+                       discount_description as "Discount Description",
+                       total as Total
+                FROM line_items 
+                WHERE invoice_id = ?
+            """, (invoice['id'],))
+            
+            line_items = [dict(row) for row in cursor.fetchall()]
+            invoice_dict['Line Items'] = line_items
+            
+            cursor.execute("ROLLBACK")
+            cursor.execute("PRAGMA query_only = OFF")
+            return invoice_dict
+            
+        except Exception as e:
+            cursor.execute("ROLLBACK")
+            cursor.execute("PRAGMA query_only = OFF")
+            print(f"Error viewing invoice: {e}")
+            return None
 
     def update_invoice_status(self, invoice_number, new_status):
         """Update the status of an invoice."""
