@@ -4,7 +4,7 @@ from PIL import Image
 from appdirs import user_data_dir
 
 APP_NAME = "IReS"
-APP_AUTHOR = "Opulatec"
+APP_AUTHOR = "Studio i Martinez"
 
 # Cross-platform app data directory
 APP_DATA_DIR = user_data_dir(APP_NAME, APP_AUTHOR)

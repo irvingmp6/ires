@@ -29,11 +29,13 @@ class ManageInvoicesWidget(QWidget):
         # Invoice number filter
         self.invoice_number_input = QLineEdit()
         self.invoice_number_input.setPlaceholderText("Enter invoice number...")
+        self.invoice_number_input.returnPressed.connect(self.search_invoices)
         filters_layout.addRow("Invoice Number:", self.invoice_number_input)
 
         # Business name filter
         self.business_name_input = QLineEdit()
         self.business_name_input.setPlaceholderText("Enter business name...")
+        self.business_name_input.returnPressed.connect(self.search_invoices)
         filters_layout.addRow("Business Name:", self.business_name_input)
 
         # Date range filters
@@ -66,8 +68,10 @@ class ManageInvoicesWidget(QWidget):
         amount_range_layout = QHBoxLayout()
         self.amount_from = QLineEdit()
         self.amount_from.setPlaceholderText("Min amount")
+        self.amount_from.returnPressed.connect(self.search_invoices)
         self.amount_to = QLineEdit()
         self.amount_to.setPlaceholderText("Max amount")
+        self.amount_to.returnPressed.connect(self.search_invoices)
         amount_range_layout.addWidget(self.amount_from)
         amount_range_layout.addWidget(QLabel("to"))
         amount_range_layout.addWidget(self.amount_to)

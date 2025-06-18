@@ -8,6 +8,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import LETTER
 from database import Database
 from PyQt6.QtWidgets import QFileDialog
+from PyQt6.QtGui import QKeySequence, QShortcut
 
 class ChangeStatusDialog(QDialog):
     def __init__(self, parent=None):
@@ -69,6 +70,24 @@ class ViewInvoiceWidget(QWidget):
             self.layout.addWidget(text)
             self.fields[label_text] = text
 
+        # Notes section
+        notes_label = QLabel("Notes:")
+        notes_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.layout.addWidget(notes_label)
+        
+        self.notes_text = QTextEdit()
+        self.notes_text.setPlaceholderText("Add notes about this invoice (e.g., payment status, void reason, etc.)")
+        self.notes_text.setMaximumHeight(100)
+        # Add Ctrl+Enter shortcut to save notes
+        save_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self.notes_text)
+        save_shortcut.activated.connect(self.save_notes)
+        self.layout.addWidget(self.notes_text)
+        
+        # Save notes button
+        save_notes_btn = QPushButton("💾 Save Notes")
+        save_notes_btn.clicked.connect(self.save_notes)
+        self.layout.addWidget(save_notes_btn)
+
         # Line item table
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["Description", "Qty", "Unit Price", "Total"])
@@ -112,6 +131,9 @@ class ViewInvoiceWidget(QWidget):
 
         for key in self.fields:
             self.fields[key].setText(str(field_mapping.get(key, "")))
+
+        # Display notes
+        self.notes_text.setText(invoice.get('notes', ''))
 
         self.table.setRowCount(0)
         for item in invoice["Line Items"]:
@@ -182,6 +204,23 @@ class ViewInvoiceWidget(QWidget):
             c.drawString(40, y, f"{key}: {field_mapping[key]}")
             y -= 15
 
+        # Add notes if they exist
+        notes = self.invoice_data.get("notes", "")
+        if notes.strip():
+            y -= 10
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(40, y, "Notes:")
+            y -= 15
+            c.setFont("Helvetica", 10)
+            # Split notes into lines and draw each line
+            notes_lines = notes.split('\n')
+            for line in notes_lines:
+                if y < 100:  # Check if we need a new page
+                    c.showPage()
+                    y = height - 40
+                c.drawString(40, y, line.strip())
+                y -= 15
+
         draw_line()
         c.setFont("Helvetica-Bold", 10)
         c.drawString(40, y, "Description")
@@ -206,4 +245,19 @@ class ViewInvoiceWidget(QWidget):
         c.drawString(400, y - 10, f"Total: ${self.invoice_data['total_amount']}")
         c.save()
 
-        QMessageBox.information(self, "Exported", f"Invoice PDF saved to:\n{save_path}") 
+        QMessageBox.information(self, "Exported", f"Invoice PDF saved to:\n{save_path}")
+
+    def save_notes(self):
+        """Save the notes for the current invoice."""
+        if not self.invoice_data:
+            QMessageBox.warning(self, "No Invoice", "No invoice is currently loaded.")
+            return
+
+        notes = self.notes_text.toPlainText()
+        invoice_number = self.invoice_data["invoice_number"]
+        
+        try:
+            self.db.update_invoice_notes(invoice_number, notes)
+            QMessageBox.information(self, "Success", "Notes saved successfully!")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save notes: {str(e)}") 

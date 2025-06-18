@@ -50,6 +50,7 @@ class Database:
                     'Paid - Fully Reconciled'
                 )
             ),
+            notes TEXT,
             FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT
         )""")
 
@@ -219,8 +220,8 @@ class Database:
                 INSERT INTO invoices (
                     invoice_number, date, customer_id, 
                     subtotal_amount, discount_type, discount_value,
-                    discount_description, total_amount, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    discount_description, total_amount, status, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 invoice_data['invoice_number'],
                 invoice_data['date'],
@@ -230,7 +231,8 @@ class Database:
                 invoice_data['discount_value'],
                 invoice_data['discount_description'],
                 invoice_data['total_amount'],
-                invoice_data.get('status', 'Active')  # Use provided status or default to 'Active'
+                invoice_data.get('status', 'Active'),  # Use provided status or default to 'Active'
+                invoice_data.get('notes', '')  # Include notes field
             ))
             
             invoice_id = cursor.lastrowid
@@ -299,6 +301,10 @@ class Database:
             line_items = [dict(row) for row in cursor.fetchall()]
             invoice_dict['Line Items'] = line_items
             
+            # Ensure notes field exists
+            if 'notes' not in invoice_dict:
+                invoice_dict['notes'] = ''
+            
             return invoice_dict
             
         except Exception as e:
@@ -346,6 +352,10 @@ class Database:
             line_items = [dict(row) for row in cursor.fetchall()]
             invoice_dict['Line Items'] = line_items
             
+            # Ensure notes field exists
+            if 'notes' not in invoice_dict:
+                invoice_dict['notes'] = ''
+            
             cursor.execute("ROLLBACK")
             cursor.execute("PRAGMA query_only = OFF")
             return invoice_dict
@@ -365,6 +375,27 @@ class Database:
             WHERE invoice_number = ?
         """, (new_status, invoice_number))
         self.conn.commit()
+
+    def update_invoice_notes(self, invoice_number, notes):
+        """Update the notes for an invoice."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE invoices 
+            SET notes = ? 
+            WHERE invoice_number = ?
+        """, (notes, invoice_number))
+        self.conn.commit()
+
+    def get_invoice_notes(self, invoice_number):
+        """Get the notes for an invoice."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT notes 
+            FROM invoices 
+            WHERE invoice_number = ?
+        """, (invoice_number,))
+        result = cursor.fetchone()
+        return result[0] if result else ""
 
     def void_invoice(self, invoice_number):
         self.update_invoice_status(invoice_number, "Void")

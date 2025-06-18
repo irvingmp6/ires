@@ -24,6 +24,7 @@ class FindExistingClientWidget(QWidget):
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Enter email, contact name, or client ID")
+        self.search_input.returnPressed.connect(self.perform_search)
         layout.addWidget(self.search_input)
 
         button_layout = QHBoxLayout()

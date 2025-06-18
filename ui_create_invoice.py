@@ -134,6 +134,18 @@ class CreateInvoiceWidget(QWidget):
         invoice_details.setLayout(invoice_layout)
         layout.addWidget(invoice_details)
 
+        # Notes Section
+        notes_group = QGroupBox("Notes")
+        notes_layout = QVBoxLayout()
+        
+        self.notes_text = QTextEdit()
+        self.notes_text.setPlaceholderText("Add any notes about this invoice (e.g., special instructions, payment terms, etc.)")
+        self.notes_text.setMaximumHeight(80)
+        notes_layout.addWidget(self.notes_text)
+        
+        notes_group.setLayout(notes_layout)
+        layout.addWidget(notes_group)
+
         # Line Items Section
         layout.addWidget(self.init_line_item_section())
 
@@ -262,7 +274,8 @@ class CreateInvoiceWidget(QWidget):
                 'discount_value': self.discount_value.text().strip(),
                 'discount_description': self.discount_description.text().strip(),
                 'total_amount': self.total_label.text().replace('$', '').strip(),
-                'status': 'Active'  # Use Active status for new invoices
+                'status': 'Active',  # Use Active status for new invoices
+                'notes': self.notes_text.toPlainText().strip()
             }
 
             # Get line items
@@ -390,6 +403,23 @@ class CreateInvoiceWidget(QWidget):
             
             y -= 20
             c.setFont("Helvetica-Bold", 12)
+
+        # Add notes if they exist
+        notes = self.notes_text.toPlainText().strip()
+        if notes:
+            y -= 10
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(50, y, "Notes:")
+            y -= 20
+            c.setFont("Helvetica", 11)
+            # Split notes into lines and draw each line
+            notes_lines = notes.split('\n')
+            for line in notes_lines:
+                if y < 100:  # Check if we need a new page
+                    c.showPage()
+                    y = height - 50
+                c.drawString(50, y, line.strip())
+                y -= 15
 
         # Line items
         y -= 20
@@ -837,6 +867,7 @@ class CreateInvoiceWidget(QWidget):
                 'phone_number': self.client_info["Phone Number"].text(),
                 'street_address': self.client_info["Street Address"].toPlainText(),
                 'customer_id': self.selected_client_id,
+                'notes': self.notes_text.toPlainText().strip(),
                 'line_items': []
             }
 
@@ -900,6 +931,7 @@ class CreateInvoiceWidget(QWidget):
                 'phone_number': self.client_info["Phone Number"].text(),
                 'street_address': self.client_info["Street Address"].toPlainText(),
                 'customer_id': self.selected_client_id,
+                'notes': self.notes_text.toPlainText().strip(),
                 'line_items': []
             }
 
@@ -1042,6 +1074,7 @@ class CreateInvoiceWidget(QWidget):
             "Business Name": self.client_info["Business Name"].text(),
             "Contact Email": self.client_info["Contact Email"].text(),
             "Street Address": self.client_info["Street Address"].toPlainText(),
+            "Notes": self.notes_text.toPlainText(),
             "Line Items": []
         }
 
@@ -1072,6 +1105,8 @@ class CreateInvoiceWidget(QWidget):
         self.client_info["Business Name"].setText(data["Business Name"])
         self.client_info["Contact Email"].setText(data["Contact Email"])
         self.client_info["Street Address"].setPlainText(data["Street Address"])
+        self.notes_text.setPlainText(data.get("Notes", ""))
+
 
         # Clear existing line items
         self.line_items_table.setRowCount(0)
@@ -1196,6 +1231,9 @@ class CreateInvoiceWidget(QWidget):
                 widget.clear()
             elif isinstance(widget, QLineEdit):
                 widget.setText("")
+
+        # Clear notes
+        self.notes_text.clear()
 
         # Clear line items
         self.line_items_table.setRowCount(0)
