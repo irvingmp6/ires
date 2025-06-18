@@ -147,6 +147,10 @@ class CreateInvoiceWidget(QWidget):
         back_btn.clicked.connect(self.go_back)
         back_btn.setToolTip("Return to invoice management")
         
+        main_menu_btn = QPushButton("← Main Menu")
+        main_menu_btn.clicked.connect(self.cancel_invoice)
+        main_menu_btn.setToolTip("Return to main menu without saving")
+        
         save_draft_btn = QPushButton("💾 Save Draft")
         save_draft_btn.clicked.connect(self.save_draft)
         save_draft_btn.setToolTip("Save your progress to continue later without creating the invoice")
@@ -163,15 +167,12 @@ class CreateInvoiceWidget(QWidget):
         clear_btn.clicked.connect(self.confirm_clear_form)
         clear_btn.setToolTip("Clear all fields and start over")
         
-        cancel_btn = QPushButton("❌ Cancel")
-        cancel_btn.clicked.connect(self.cancel_invoice)
-        
         button_layout.addWidget(back_btn)
+        button_layout.addWidget(main_menu_btn)
         button_layout.addWidget(save_draft_btn)
         button_layout.addWidget(preview_btn)
         button_layout.addWidget(create_btn)
         button_layout.addWidget(clear_btn)
-        button_layout.addWidget(cancel_btn)
         
         layout.addLayout(button_layout)
 

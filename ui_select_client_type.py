@@ -37,13 +37,14 @@ class SelectClientTypeWidget(QWidget):
         draft_btn.setMinimumHeight(60)
         layout.addWidget(draft_btn)
 
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.return_to_main_menu)
-        cancel_btn.setMinimumHeight(60)
-        layout.addWidget(cancel_btn)
+        # Cancel button
+        back_btn = QPushButton("← Back to Main Menu")
+        back_btn.clicked.connect(self.return_to_main_menu)
+        back_btn.setMinimumHeight(60)
+        layout.addWidget(back_btn)
 
         # Apply button styles
-        for btn in [new_client_btn, existing_client_btn, draft_btn, cancel_btn]:
+        for btn in [new_client_btn, existing_client_btn, draft_btn, back_btn]:
             btn.setStyleSheet("font-size: 18px;")
 
     def create_new_client(self):

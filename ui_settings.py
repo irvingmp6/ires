@@ -50,15 +50,14 @@ class SettingsDialog(QDialog):
         self.logging_checkbox.setChecked(self.enable_logging)
         layout.addWidget(self.logging_checkbox)
 
-        # Save and Cancel
+        # Buttons
         button_layout = QHBoxLayout()
         save_btn = QPushButton("Save")
-        cancel_btn = QPushButton("Cancel")
-        save_btn.clicked.connect(self.save_settings)
-        cancel_btn.clicked.connect(self.reject)
-
+        back_btn = QPushButton("← Back")
+        save_btn.clicked.connect(self.accept)
+        back_btn.clicked.connect(self.reject)
         button_layout.addWidget(save_btn)
-        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(back_btn)
         layout.addLayout(button_layout)
 
     def browse_logo(self):

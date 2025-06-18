@@ -105,9 +105,9 @@ class FindInvoiceWidget(QWidget):
         reprint_btn.clicked.connect(self.reprint_pdf)
         action_layout.addWidget(reprint_btn)
 
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.return_to_main_menu)
-        action_layout.addWidget(cancel_btn)
+        back_btn = QPushButton("← Back to Main Menu")
+        back_btn.clicked.connect(self.return_to_main_menu)
+        action_layout.addWidget(back_btn)
         
         self.layout.addLayout(action_layout)
 
