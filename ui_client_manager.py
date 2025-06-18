@@ -205,15 +205,15 @@ class ClientManagerWidget(QWidget):
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("💾 Save Changes")
         refresh_btn = QPushButton("🔄 Refresh")
-        cancel_btn = QPushButton("Cancel")
+        back_btn = QPushButton("← Back to Main Menu")
 
         save_btn.clicked.connect(self.save_client)
         refresh_btn.clicked.connect(self.load_clients)
-        cancel_btn.clicked.connect(lambda: self.main_window.stack.setCurrentIndex(0))
+        back_btn.clicked.connect(lambda: self.main_window.stack.setCurrentIndex(0))
 
         btn_layout.addWidget(save_btn)
         btn_layout.addWidget(refresh_btn)
-        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(back_btn)
         layout.addLayout(btn_layout)
 
         self.load_clients()

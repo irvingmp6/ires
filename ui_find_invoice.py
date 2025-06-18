@@ -37,11 +37,11 @@ class ChangeStatusDialog(QDialog):
         # Buttons
         btn_layout = QHBoxLayout()
         ok_btn = QPushButton("OK")
-        cancel_btn = QPushButton("Cancel")
+        back_btn = QPushButton("← Back")
         ok_btn.clicked.connect(self.accept)
-        cancel_btn.clicked.connect(self.reject)
+        back_btn.clicked.connect(self.reject)
         btn_layout.addWidget(ok_btn)
-        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(back_btn)
         layout.addLayout(btn_layout)
 
     def get_selected_status(self):

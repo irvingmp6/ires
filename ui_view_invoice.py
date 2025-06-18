@@ -99,8 +99,19 @@ class ViewInvoiceWidget(QWidget):
 
         self.invoice_data = invoice
 
+        # Map database field names to display field names
+        field_mapping = {
+            "Invoice Number": invoice.get("invoice_number", ""),
+            "Invoice Date": invoice.get("date", ""),
+            "Business Name": invoice.get("business_name", ""),
+            "Contact Email": invoice.get("primary_email", ""),
+            "Street Address": invoice.get("street_address", ""),
+            "Total Amount": invoice.get("total_amount", ""),
+            "Status": invoice.get("status", "")
+        }
+
         for key in self.fields:
-            self.fields[key].setText(str(invoice.get(key, "")))
+            self.fields[key].setText(str(field_mapping.get(key, "")))
 
         self.table.setRowCount(0)
         for item in invoice["Line Items"]:
@@ -123,7 +134,7 @@ class ViewInvoiceWidget(QWidget):
         dialog = ChangeStatusDialog(self)
         if dialog.exec():
             new_status = dialog.get_selected_status()
-            invoice_number = self.invoice_data["Invoice Number"]
+            invoice_number = self.invoice_data["invoice_number"]
             self.db.update_invoice_status(invoice_number, new_status)
             self.fields["Status"].setText(new_status)
             QMessageBox.information(self, "Success", f"Invoice status updated to: {new_status}")
@@ -139,7 +150,7 @@ class ViewInvoiceWidget(QWidget):
         save_path, _ = QFileDialog.getSaveFileName(
             self, 
             "Export PDF", 
-            f"{self.invoice_data['Invoice Number']}.pdf", 
+            f"{self.invoice_data['invoice_number']}.pdf", 
             "PDF Files (*.pdf)")
         if not save_path:
             return
@@ -154,12 +165,21 @@ class ViewInvoiceWidget(QWidget):
             y -= 20
 
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(40, y, f"Invoice: {self.invoice_data['Invoice Number']}")
+        c.drawString(40, y, f"Invoice: {self.invoice_data['invoice_number']}")
         y -= 30
+
+        # Map database field names to display names
+        field_mapping = {
+            "Date": self.invoice_data.get("date", ""),
+            "Business Name": self.invoice_data.get("business_name", ""),
+            "Contact Email": self.invoice_data.get("primary_email", ""),
+            "Street Address": self.invoice_data.get("street_address", ""),
+            "Status": self.invoice_data.get("status", "")
+        }
 
         for key in ["Date", "Business Name", "Contact Email", "Street Address", "Status"]:
             c.setFont("Helvetica", 10)
-            c.drawString(40, y, f"{key}: {self.invoice_data[key]}")
+            c.drawString(40, y, f"{key}: {field_mapping[key]}")
             y -= 15
 
         draw_line()
@@ -183,7 +203,7 @@ class ViewInvoiceWidget(QWidget):
 
         draw_line()
         c.setFont("Helvetica-Bold", 12)
-        c.drawString(400, y - 10, f"Total: ${self.invoice_data['Total Amount']}")
+        c.drawString(400, y - 10, f"Total: ${self.invoice_data['total_amount']}")
         c.save()
 
         QMessageBox.information(self, "Exported", f"Invoice PDF saved to:\n{save_path}") 

@@ -47,18 +47,17 @@ class DraftInvoicesWidget(QWidget):
         # Buttons
         button_layout = QHBoxLayout()
         
-        load_btn = QPushButton("📥 Load Selected Draft")
+        load_btn = QPushButton("📄 Load Draft")
+        delete_btn = QPushButton("🗑️ Delete Draft")
+        back_btn = QPushButton("← Back to Main Menu")
+        
         load_btn.clicked.connect(self.load_selected_draft)
-        
-        delete_btn = QPushButton("🗑️ Delete Selected Draft")
         delete_btn.clicked.connect(self.delete_selected_draft)
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.return_to_main_menu)
+        back_btn.clicked.connect(self.return_to_main_menu)
         
         button_layout.addWidget(load_btn)
         button_layout.addWidget(delete_btn)
-        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(back_btn)
         
         layout.addLayout(button_layout)
 

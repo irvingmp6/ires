@@ -15,12 +15,7 @@ class Database:
         # Enable foreign key support
         cursor.execute("PRAGMA foreign_keys = ON")
 
-        # Drop existing tables in reverse order of dependencies
-        cursor.execute("DROP TABLE IF EXISTS line_items")
-        cursor.execute("DROP TABLE IF EXISTS invoices")
-        cursor.execute("DROP TABLE IF EXISTS customers")
-        cursor.execute("DROP TABLE IF EXISTS payment_terms")
-
+        # Create tables only if they don't exist (don't drop existing tables)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS customers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
