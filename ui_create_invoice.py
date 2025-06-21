@@ -155,13 +155,9 @@ class CreateInvoiceWidget(QWidget):
         # Action Buttons
         button_layout = QHBoxLayout()
         
-        back_btn = QPushButton("← Back")
-        back_btn.clicked.connect(self.go_back)
-        back_btn.setToolTip("Return to invoice management")
-        
-        main_menu_btn = QPushButton("← Main Menu")
-        main_menu_btn.clicked.connect(self.cancel_invoice)
-        main_menu_btn.setToolTip("Return to main menu without saving")
+        clear_btn = QPushButton("🗑️ Clear Form")
+        clear_btn.clicked.connect(self.confirm_clear_form)
+        clear_btn.setToolTip("Clear all fields and start over")
         
         save_draft_btn = QPushButton("💾 Save Draft")
         save_draft_btn.clicked.connect(self.save_draft)
@@ -175,16 +171,15 @@ class CreateInvoiceWidget(QWidget):
         create_btn.clicked.connect(self.save_invoice)
         create_btn.setToolTip("Save the invoice and generate the final PDF")
         
-        clear_btn = QPushButton("🗑️ Clear Form")
-        clear_btn.clicked.connect(self.confirm_clear_form)
-        clear_btn.setToolTip("Clear all fields and start over")
+        back_btn = QPushButton("← Back")
+        back_btn.clicked.connect(self.go_back)
+        back_btn.setToolTip("Return to invoice management")
         
-        button_layout.addWidget(back_btn)
-        button_layout.addWidget(main_menu_btn)
+        button_layout.addWidget(clear_btn)
         button_layout.addWidget(save_draft_btn)
         button_layout.addWidget(preview_btn)
         button_layout.addWidget(create_btn)
-        button_layout.addWidget(clear_btn)
+        button_layout.addWidget(back_btn)
         
         layout.addLayout(button_layout)
 
