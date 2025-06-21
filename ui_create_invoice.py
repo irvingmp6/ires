@@ -131,6 +131,22 @@ class CreateInvoiceWidget(QWidget):
         self.client_info["Street Address"].setMaximumHeight(60)
         invoice_layout.addRow("Street Address:", self.client_info["Street Address"])
 
+        # Payment Terms and Description
+        self.payment_terms_dropdown = QComboBox()
+        self.payment_terms_dropdown.addItems(self.db.get_all_payment_terms_codes())
+        self.payment_terms_dropdown.setCurrentText("DUE ON RECEIPT") # Default to "DUE ON RECEIPT"
+        invoice_layout.addRow("Payment Terms:", self.payment_terms_dropdown)
+
+        # Payment Terms Description
+        self.term_description = QLabel()
+        self.term_description.setWordWrap(True)
+        self.term_description.setStyleSheet("color: gray; font-style: italic;")
+        invoice_layout.addRow("", self.term_description)
+
+        # Show current description and update when dropdown changes
+        self.update_term_description()
+        self.payment_terms_dropdown.currentTextChanged.connect(self.update_term_description)
+
         invoice_details.setLayout(invoice_layout)
         layout.addWidget(invoice_details)
 
@@ -308,7 +324,7 @@ class CreateInvoiceWidget(QWidget):
                         'street_address': self.client_info["Street Address"].toPlainText().strip(),
                         'primary_contact_name': self.client_info["Contact Name"].text().strip(),
                         'primary_contact_phone': self.client_info["Phone Number"].text().strip(),
-                        'payment_terms_code': 'NET30'  # Default payment terms
+                        'payment_terms_code': self.payment_terms_dropdown.currentText()
                     }
 
             # Save everything in a single transaction
@@ -398,6 +414,18 @@ class CreateInvoiceWidget(QWidget):
             
             y -= 20
             c.setFont("Helvetica-Bold", 12)
+
+        # Add payment terms
+        payment_term = self.payment_terms_dropdown.currentText()
+        if payment_term:
+            y -= 10
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(50, y, "Payment Terms:")
+            y -= 20
+            c.setFont("Helvetica", 12)
+            term_description = self.db.get_all_payment_terms_full_verbiage().get(payment_term, payment_term)
+            c.drawString(200, y, term_description)
+            y -= 20
 
         # Add notes if they exist
         notes = self.notes_text.toPlainText().strip()
@@ -519,7 +547,7 @@ class CreateInvoiceWidget(QWidget):
             self.payment_terms_dropdown.setCurrentText(saved_term)
             self.update_term_description()
         else:
-            self.payment_terms_dropdown.setCurrentIndex(0)
+            self.payment_terms_dropdown.setCurrentIndex(0)  # Default to DUE ON RECEIPT
             self.term_description.clear()
     
     def generate_invoice_number(self):
@@ -815,34 +843,56 @@ class CreateInvoiceWidget(QWidget):
         self.line_items_table.setItem(row, 6, total_item)
 
     def handle_client_email_change(self):
-        """Handle client email changes - only load existing customers, don't create new ones"""
+        """Handle changes to the client email field"""
         email = self.client_info["Contact Email"].text().strip()
-        if not email:
-            self.selected_client_id = None
-            return
-
-        # Try to find existing client
-        client_id = self.db.get_customer_id_by_email(email)
-        if client_id:
-            # Use existing client automatically
-            self.selected_client_id = client_id
-            # Load their information
-            client_info = self.db.get_client_by_id(client_id)
-            if client_info:
-                self.client_info["Business Name"].setText(client_info.get('business_name', ''))
-                self.client_info["Contact Name"].setText(client_info.get('primary_contact_name', ''))
-                self.client_info["Phone Number"].setText(client_info.get('primary_contact_phone', ''))
-                self.client_info["Street Address"].setPlainText(client_info.get('street_address', ''))
+        
+        if email:
+            # Check if client exists
+            client_id = self.db.get_customer_id_by_email(email)
+            
+            if client_id:
+                # Get existing client data
+                existing_client = self.db.get_client_by_id(client_id)
                 
-                # Show a message that we found an existing client
-                QMessageBox.information(
-                    self,
-                    "Existing Client Found",
-                    f"Found existing client with email {email}.\nTheir information has been loaded into the form."
-                )
-        else:
-            # No existing client found - will be created when invoice is saved
-            self.selected_client_id = None
+                if existing_client:
+                    # Populate fields with existing client data
+                    self.client_info["Business Name"].setText(existing_client.get('business_name', ''))
+                    self.client_info["Contact Name"].setText(existing_client.get('primary_contact_name', ''))
+                    self.client_info["Phone Number"].setText(existing_client.get('primary_contact_phone', ''))
+                    self.client_info["Street Address"].setPlainText(existing_client.get('street_address', ''))
+                    
+                    # Load client's payment terms
+                    self.load_client_term(self.client_info["Contact Email"])
+                    
+                    # Store the client ID for later use
+                    self.selected_client_id = client_id
+                    
+                    # Show status
+                    self.status_label.setText(f"✓ Loaded existing client: {existing_client.get('business_name', '')}")
+                    self.status_label.setStyleSheet("color: green;")
+                    
+                    # Clear status after 3 seconds
+                    QTimer.singleShot(3000, self.clear_status)
+            # else:
+            #     # Clear fields if no existing client found
+            #     self.client_info["Business Name"].clear()
+            #     self.client_info["Contact Name"].clear()
+            #     self.client_info["Phone Number"].clear()
+            #     self.client_info["Street Address"].clear()
+                
+            #     # Reset payment terms to default
+            #     self.payment_terms_dropdown.setCurrentIndex(0)  # Default to DUE ON RECEIPT
+            #     self.term_description.clear()
+                
+            #     # Clear the selected client ID
+            #     self.selected_client_id = None
+                
+            #     # Show status
+            #     self.status_label.setText("ℹ️ New client - please fill in details")
+            #     self.status_label.setStyleSheet("color: white;")
+                
+            #     # Clear status after 3 seconds
+            #     QTimer.singleShot(3000, self.clear_status)
 
     def save_draft(self):
         """Save the current invoice as a draft"""
@@ -863,6 +913,7 @@ class CreateInvoiceWidget(QWidget):
                 'street_address': self.client_info["Street Address"].toPlainText(),
                 'customer_id': self.selected_client_id,
                 'notes': self.notes_text.toPlainText().strip(),
+                'payment_terms': self.payment_terms_dropdown.currentText(),
                 'line_items': []
             }
 
@@ -927,6 +978,7 @@ class CreateInvoiceWidget(QWidget):
                 'street_address': self.client_info["Street Address"].toPlainText(),
                 'customer_id': self.selected_client_id,
                 'notes': self.notes_text.toPlainText().strip(),
+                'payment_terms': self.payment_terms_dropdown.currentText(),
                 'line_items': []
             }
 
@@ -1070,6 +1122,7 @@ class CreateInvoiceWidget(QWidget):
             "Contact Email": self.client_info["Contact Email"].text(),
             "Street Address": self.client_info["Street Address"].toPlainText(),
             "Notes": self.notes_text.toPlainText(),
+            "Payment Terms": self.payment_terms_dropdown.currentText(),
             "Line Items": []
         }
 
@@ -1101,7 +1154,7 @@ class CreateInvoiceWidget(QWidget):
         self.client_info["Contact Email"].setText(data["Contact Email"])
         self.client_info["Street Address"].setPlainText(data["Street Address"])
         self.notes_text.setPlainText(data.get("Notes", ""))
-
+        self.payment_terms_dropdown.setCurrentText(data.get("Payment Terms", "NET30"))
 
         # Clear existing line items
         self.line_items_table.setRowCount(0)
@@ -1229,6 +1282,10 @@ class CreateInvoiceWidget(QWidget):
 
         # Clear notes
         self.notes_text.clear()
+
+        # Reset payment terms
+        self.payment_terms_dropdown.setCurrentIndex(0)  # Default to DUE ON RECEIPT
+        self.term_description.clear()
 
         # Clear line items
         self.line_items_table.setRowCount(0)

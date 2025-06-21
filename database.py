@@ -132,7 +132,7 @@ class Database:
 
     def get_all_payment_terms_codes(self):
         cursor = self.conn.cursor()
-        cursor.execute("""SELECT payment_terms_code FROM payment_terms ORDER BY payment_terms_code""")
+        cursor.execute("""SELECT payment_terms_code FROM payment_terms ORDER BY id ASC""")
         codes = [row[0] for row in cursor.fetchall()]
         codes.sort()
         return codes
