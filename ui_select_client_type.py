@@ -18,12 +18,13 @@ class SelectClientTypeWidget(QWidget):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
+
         # Buttons
-        new_client_btn = QPushButton("➕ New Client")
-        new_client_btn.setToolTip("Create an invoice for a new client")
-        new_client_btn.clicked.connect(self.create_new_client)
-        new_client_btn.setMinimumHeight(60)
-        layout.addWidget(new_client_btn)
+        draft_btn = QPushButton("✏️ Resume Draft")
+        draft_btn.setToolTip("Continue working on a previously saved draft invoice")
+        draft_btn.clicked.connect(self.load_draft)
+        draft_btn.setMinimumHeight(60)
+        layout.addWidget(draft_btn)
 
         existing_client_btn = QPushButton("💼 Existing Client")
         existing_client_btn.setToolTip("Create an invoice for an existing client")
@@ -31,11 +32,12 @@ class SelectClientTypeWidget(QWidget):
         existing_client_btn.setMinimumHeight(60)
         layout.addWidget(existing_client_btn)
 
-        draft_btn = QPushButton("✏️ Resume Draft")
-        draft_btn.setToolTip("Continue working on a previously saved draft invoice")
-        draft_btn.clicked.connect(self.load_draft)
-        draft_btn.setMinimumHeight(60)
-        layout.addWidget(draft_btn)
+        new_client_btn = QPushButton("➕ New Client")
+        new_client_btn.setToolTip("Create an invoice for a new client")
+        new_client_btn.clicked.connect(self.create_new_client)
+        new_client_btn.setMinimumHeight(60)
+        layout.addWidget(new_client_btn)
+
 
         # Cancel button
         back_btn = QPushButton("← Back to Main Menu")

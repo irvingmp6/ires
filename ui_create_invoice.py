@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import decimal
 from decimal import Decimal
 
 from PyQt6.QtWidgets import (
@@ -368,8 +369,8 @@ class CreateInvoiceWidget(QWidget):
                     except Exception as e:
                         QMessageBox.critical(self, "Error", f"Failed to create PDF: {str(e)}")
             
-            # Clear the form and generate new invoice number for next invoice
-            self.clear_fields()
+            # # Clear the form and generate new invoice number for next invoice
+            # self.clear_fields()
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save invoice: {str(e)}")
@@ -547,8 +548,8 @@ class CreateInvoiceWidget(QWidget):
             self.payment_terms_dropdown.setCurrentText(saved_term)
             self.update_term_description()
         else:
-            self.payment_terms_dropdown.setCurrentIndex(0)  # Default to DUE ON RECEIPT
-            self.term_description.clear()
+            self.payment_terms_dropdown.setCurrentText("DUE ON RECEIPT") # Default to "DUE ON RECEIPT"
+            self.update_term_description()
     
     def generate_invoice_number(self):
         """Generate an invoice number in the format INV-YYYYMMDD-HHMMSS"""
@@ -1216,8 +1217,8 @@ class CreateInvoiceWidget(QWidget):
         if self.db.invoice_number_exists(invoice_number):
             QMessageBox.warning(
                 self,
-                "Validation Error", 
-                "This invoice number already exists. Please use a different number or click the regenerate button."
+                "Invoice Number Error", 
+                "The invoice number already exists in the system. Either assign the invoice a new number or clear the form to start all over."
             )
             return False
 
@@ -1253,7 +1254,7 @@ class CreateInvoiceWidget(QWidget):
                 
             try:
                 price = float(self.line_items_table.cellWidget(row, 2).text() or 0)
-                if price <= 0:
+                if price < Decimal(0):
                     QMessageBox.warning(self, "Validation Error", f"Please enter a valid price for line item {row + 1}.")
                     return False
             except ValueError:
@@ -1284,7 +1285,8 @@ class CreateInvoiceWidget(QWidget):
         self.notes_text.clear()
 
         # Reset payment terms
-        self.payment_terms_dropdown.setCurrentIndex(0)  # Default to DUE ON RECEIPT
+        self.payment_terms_dropdown.setCurrentText("DUE ON RECEIPT") # Default to DUE ON RECEIPT
+        self.update_term_description()
         self.term_description.clear()
 
         # Clear line items

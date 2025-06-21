@@ -93,12 +93,31 @@ class FindExistingClientWidget(QWidget):
 
         row_index = selected[0].row()
         client_data = self.matching_clients[row_index]
+        client_id = client_data[0]
+
+        # Get full client data using the ID
+        client_details = self.db.get_client_by_id(client_id)
+
+        if not client_details:
+            QMessageBox.critical(self, "Error", f"Could not retrieve details for client ID {client_id}.")
+            return
 
         # Fill invoice form with selected client
         invoice_form = self.main_window.invoice_page
         invoice_form.clear_fields()
-        invoice_form.invoice_fields["Business Name"].setText(client_data[1])
-        invoice_form.invoice_fields["Contact Email"].setText(client_data[2] or "")  # Primary Email
-        invoice_form.invoice_fields["Street Address"].setPlainText(client_data[3] or "")
+
+        # Set the selected client ID
+        invoice_form.selected_client_id = client_id
+
+        # Populate the client info fields
+        invoice_form.client_info["Business Name"].setText(client_details.get('business_name', ''))
+        invoice_form.client_info["Contact Name"].setText(client_details.get('primary_contact_name', ''))
+        invoice_form.client_info["Contact Email"].setText(client_details.get('primary_email', ''))
+        invoice_form.client_info["Phone Number"].setText(client_details.get('primary_contact_phone', ''))
+        invoice_form.client_info["Street Address"].setPlainText(client_details.get('street_address', ''))
+
+        # Load the client's preferred payment terms
+        invoice_form.load_client_term(invoice_form.client_info["Contact Email"])
+
         invoice_form.set_previous_widget(self)
         self.main_window.stack.setCurrentWidget(invoice_form)
