@@ -48,7 +48,7 @@ class ChangeStatusDialog(QDialog):
     def get_selected_status(self):
         return self.status_combo.currentText()
 
-class FindInvoiceWidget(QWidget):
+class UpdateInvoiceWidget(QWidget):
     def __init__(self, main_window):
         super().__init__(main_window)
         self.main_window = main_window
@@ -59,21 +59,10 @@ class FindInvoiceWidget(QWidget):
     def init_ui(self):
         self.layout = QVBoxLayout(self)
 
-        title = QLabel("🔍 Find Invoice")
+        title = QLabel("🔃 Update Invoice")
         title.setProperty("title", True)
         self.layout.addWidget(title)
 
-        # Invoice ID search bar
-        input_layout = QHBoxLayout()
-        self.invoice_id_input = QLineEdit()
-        self.invoice_id_input.setPlaceholderText("Enter Invoice Number")
-        self.invoice_id_input.returnPressed.connect(self.find_invoice)
-        find_btn = QPushButton("Find")
-        find_btn.clicked.connect(self.find_invoice)
-
-        input_layout.addWidget(self.invoice_id_input)
-        input_layout.addWidget(find_btn)
-        self.layout.addLayout(input_layout)
 
         # Info area
         self.info_label = QLabel()
@@ -125,8 +114,8 @@ class FindInvoiceWidget(QWidget):
         reprint_btn.clicked.connect(self.reprint_pdf)
         action_layout.addWidget(reprint_btn)
 
-        back_btn = QPushButton("← Back to Main Menu")
-        back_btn.clicked.connect(self.return_to_main_menu)
+        back_btn = QPushButton("← Back")
+        back_btn.clicked.connect(self.return_to_manage_invoices)
         action_layout.addWidget(back_btn)
         
         self.layout.addLayout(action_layout)
@@ -166,8 +155,8 @@ class FindInvoiceWidget(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load invoice: {str(e)}")
 
-    def return_to_main_menu(self):
-        self.main_window.stack.setCurrentIndex(0)
+    def return_to_manage_invoices(self):
+        self.main_window.stack.setCurrentIndex(4)
 
     def reprint_pdf(self):
         if not self.invoice_data:

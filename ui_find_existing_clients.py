@@ -29,9 +29,9 @@ class FindExistingClientWidget(QWidget):
 
         button_layout = QHBoxLayout()
         search_btn = QPushButton("Search")
-        back_btn = QPushButton("← Back to Main Menu")
+        back_btn = QPushButton("← Back")
         search_btn.clicked.connect(self.perform_search)
-        back_btn.clicked.connect(lambda: self.main_window.stack.setCurrentIndex(0))
+        back_btn.clicked.connect(lambda: self.main_window.stack.setCurrentIndex(1))
         button_layout.addWidget(search_btn)
         button_layout.addWidget(back_btn)
         layout.addLayout(button_layout)

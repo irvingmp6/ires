@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QDate
 from database import Database
-from ui_find_invoice import FindInvoiceWidget
+from ui_update_invoice import UpdateInvoiceWidget
 
 class ManageInvoicesWidget(QWidget):
     def __init__(self, main_window):
@@ -159,8 +159,8 @@ class ManageInvoicesWidget(QWidget):
                 QMessageBox.warning(self, "Error", "Failed to load invoice data.")
                 return
                 
-            # Create and show the FindInvoiceWidget
-            find_invoice_widget = FindInvoiceWidget(self.main_window)
+            # Create and show the UpdateInvoiceWidget
+            find_invoice_widget = UpdateInvoiceWidget(self.main_window)
             find_invoice_widget.invoice_data = invoice_data  # Set the data first
             find_invoice_widget.display_invoice_data(invoice_data)  # Display it
             
