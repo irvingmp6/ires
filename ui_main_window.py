@@ -17,7 +17,7 @@ from ui_find_existing_clients import FindExistingClientWidget
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Invoice Reconciliation System - Software by Irving Martinez")
+        self.setWindowTitle("IReS - Designed by Studio i Martinez")
         self.setMinimumSize(800, 600)  # Set minimum size
         
         self.settings = self.load_settings()
@@ -83,7 +83,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.logo_label)
         self.display_logo()
 
-        title = QLabel("Welcome back!")
+        title = QLabel("Main Menu")
         title.setStyleSheet("font-size: 36px; font-weight: bold;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
