@@ -13,7 +13,7 @@ class SelectClientTypeWidget(QWidget):
         layout = QVBoxLayout(self)
 
         # Title
-        title = QLabel("Who is this invoice for?")
+        title = QLabel("Select an option")
         title.setProperty("title", True)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
