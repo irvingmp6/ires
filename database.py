@@ -61,7 +61,7 @@ class Database:
             short_description TEXT,
             quantity INTEGER,
             unit_price TEXT,
-            discount_type TEXT CHECK(discount_type IN ('NONE', 'PERCENTAGE', 'FIXED_AMOUNT', 'BULK')),
+            discount_type TEXT CHECK(discount_type IN ('NONE', 'PERCENTAGE', 'FIXED_AMOUNT')),
             discount_value TEXT,
             discount_description TEXT,
             total TEXT,

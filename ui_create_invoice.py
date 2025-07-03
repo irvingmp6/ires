@@ -489,8 +489,8 @@ class CreateInvoiceWidget(QWidget):
                     discount_text = f"{discount_value}%"
                 elif discount_type == "FIXED_AMOUNT":
                     discount_text = self.format_currency(discount_value)
-                else:  # BULK
-                    discount_text = f"Buy {discount_value}"
+                else:
+                    discount_text = "NONE"
             else:
                 discount_text = "NONE"
             
@@ -725,18 +725,7 @@ class CreateInvoiceWidget(QWidget):
                             if discount < 0:
                                 raise ValueError("Discount amount cannot be negative")
                             line_total -= discount
-                        elif discount_type == "BULK":
-                            # Parse bulk discount format (e.g., "3:1" means buy 3 get 1 free)
-                            if ":" not in discount_value_text:
-                                raise ValueError("Bulk discount must be in format 'X:Y'")
-                            buy, get = map(int, discount_value_text.split(":"))
-                            if buy <= 0 or get <= 0:
-                                raise ValueError("Bulk discount values must be positive")
-                            if get >= buy:
-                                raise ValueError("Buy quantity must be greater than free quantity")
-                            total_sets = int(qty) // (buy + get)
-                            discount = (total_sets * get) * unit_price
-                            line_total -= discount
+
                     except (ValueError, decimal.InvalidOperation) as e:
                         error_msg = str(e) if str(e) != "decimal.InvalidOperation" else "Invalid number format"
                         QMessageBox.warning(
@@ -745,8 +734,7 @@ class CreateInvoiceWidget(QWidget):
                             f"Invalid discount in row {row + 1}: {error_msg}\n\n"
                             "Valid formats:\n"
                             "- Percentage: Enter a number between 0-100\n"
-                            "- Fixed Amount: Enter a valid number\n"
-                            "- Bulk: Enter in format 'X:Y' (e.g., '3:1' for buy 3 get 1 free)"
+                            "- Fixed Amount: Enter a valid number"
                         )
                         self.line_items_table.cellWidget(row, 4).setText("")
                 
@@ -825,7 +813,7 @@ class CreateInvoiceWidget(QWidget):
         
         # Add discount type combo
         discount_type = QComboBox()
-        discount_type.addItems(["NONE", "PERCENTAGE", "FIXED_AMOUNT", "BULK"])
+        discount_type.addItems(["NONE", "PERCENTAGE", "FIXED_AMOUNT"])
         discount_type.currentTextChanged.connect(self.update_totals)
         self.line_items_table.setCellWidget(row, 3, discount_type)
         
