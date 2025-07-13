@@ -121,6 +121,13 @@ class DraftInvoicesWidget(QWidget):
             invoice_form.client_info["Phone Number"].setText(draft_data['phone_number'])
             invoice_form.client_info["Street Address"].setPlainText(draft_data['street_address'])
             invoice_form.selected_client_id = draft_data['customer_id']
+            
+            # Set job and notes
+            invoice_form.job_text.setPlainText(draft_data.get('job', ''))
+            invoice_form.notes_text.setPlainText(draft_data.get('notes', ''))
+            
+            # Set sales tax rate
+            invoice_form.sales_tax_rate.setText(draft_data.get('sales_tax_rate', ''))
 
             # Load line items
             for item in draft_data['line_items']:

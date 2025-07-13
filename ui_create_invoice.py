@@ -7,7 +7,8 @@ from decimal import Decimal
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QTextEdit, QVBoxLayout, QHBoxLayout,
     QTableWidget, QTableWidgetItem, QPushButton, QHeaderView, QMessageBox,
-    QDateEdit, QSpinBox, QDoubleSpinBox, QFileDialog, QComboBox, QGroupBox, QFormLayout, QSizePolicy, QDialog, QListWidget, QListWidgetItem
+    QDateEdit, QSpinBox, QDoubleSpinBox, QFileDialog, QComboBox, QGroupBox, 
+    QFormLayout, QSizePolicy, QDialog, QListWidget, QListWidgetItem
 )
 from PyQt6.QtCore import Qt, QDate, QDateTime, QTimer
 from PyQt6.QtGui import QFocusEvent
@@ -74,94 +75,105 @@ class CreateInvoiceWidget(QWidget):
                         break
                 break
 
+    # Helper method for uniform field rows
+    def create_form_row(self, label_text, widget):
+        label = QLabel(label_text)
+        label.setFixedWidth(120)  # Uniform label width (optional)
+
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+
+        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        # Expand all the way
+        container_layout.addWidget(widget, 15)
+        # container_layout.addStretch(1)
+
+        row = QHBoxLayout()
+        row.addWidget(label)
+        row.addWidget(container)
+        return row
+
     def init_ui(self):
         layout = QVBoxLayout(self)
 
         # Title
-        title = QLabel("📝 Create New Invoice")
+        title = QLabel("📜 Create New Invoice")
         title.setProperty("title", True)
         layout.addWidget(title)
 
-        # Invoice Details Section
-        invoice_details = QGroupBox("Invoice Details")
-        invoice_layout = QFormLayout()
+        # Client Details Section
+        invoice_details = QGroupBox()
+        invoice_layout = QVBoxLayout()
 
-        # Invoice number field with regenerate button
-        invoice_number_layout = QHBoxLayout()
+        # Two-column section
+        two_column_layout = QHBoxLayout()
+
+        # Column 1
+        column1_layout = QVBoxLayout()
         self.invoice_fields = {}
         self.invoice_fields["Invoice Number"] = QLineEdit()
         self.invoice_fields["Invoice Number"].setPlaceholderText("Enter invoice number")
-        
+
+        # Invoice number row (with regenerate button)
+        invoice_number_widget = QWidget()
+        invoice_number_layout = QHBoxLayout(invoice_number_widget)
+        invoice_number_layout.setContentsMargins(0, 0, 0, 0)
+        invoice_number_layout.addWidget(self.invoice_fields["Invoice Number"], 8)
+
         regenerate_btn = QPushButton("🔄 Regenerate Number")
         regenerate_btn.setToolTip("Generate a new invoice number")
         regenerate_btn.clicked.connect(self.generate_invoice_number)
-        
-        invoice_number_layout.addWidget(self.invoice_fields["Invoice Number"])
-        invoice_number_layout.addWidget(regenerate_btn)
-        invoice_layout.addRow("Invoice Number:", invoice_number_layout)
+        invoice_number_layout.addWidget(regenerate_btn, 2)
+        column1_layout.addLayout(self.create_form_row("Invoice Number:", invoice_number_widget))
 
-        # Date field
+        self.client_info = {}
+        self.client_info["Business Name"] = QLineEdit()
+        column1_layout.addLayout(self.create_form_row("Business Name:", self.client_info["Business Name"]))
+
+        self.client_info["Contact Email"] = QLineEdit()
+        self.client_info["Contact Email"].textChanged.connect(self.handle_client_email_change)
+        column1_layout.addLayout(self.create_form_row("Contact Email:", self.client_info["Contact Email"]))
+
+        self.client_info["Street Address"] = QTextEdit()
+        self.client_info["Street Address"].setMaximumHeight(60)
+        column1_layout.addLayout(self.create_form_row("Street Address:", self.client_info["Street Address"]))
+
+
+        # Column 2
+        column2_layout = QVBoxLayout()
         self.date_edit = QDateEdit()
         self.date_edit.setCalendarPopup(True)
         self.date_edit.setDate(QDate.currentDate())
-        self.date_edit.dateChanged.connect(self.generate_invoice_number)  # Regenerate number when date changes
-        invoice_layout.addRow("Date:", self.date_edit)
+        column2_layout.addLayout(self.create_form_row("Date:", self.date_edit))
 
-        # Client info
-        self.client_info = {}
-        
-        # Business Name - single line
-        self.client_info["Business Name"] = QLineEdit()
-        invoice_layout.addRow("Business Name:", self.client_info["Business Name"])
-        
-        # Contact Name - single line
         self.client_info["Contact Name"] = QLineEdit()
-        invoice_layout.addRow("Contact Name:", self.client_info["Contact Name"])
-        
-        # Contact Email - single line
-        self.client_info["Contact Email"] = QLineEdit()
-        self.client_info["Contact Email"].textChanged.connect(self.handle_client_email_change)
-        invoice_layout.addRow("Contact Email:", self.client_info["Contact Email"])
-        
-        # Phone Number - single line
-        self.client_info["Phone Number"] = QLineEdit()
-        invoice_layout.addRow("Phone Number:", self.client_info["Phone Number"])
-        
-        # Street Address - multi-line
-        self.client_info["Street Address"] = QTextEdit()
-        self.client_info["Street Address"].setMaximumHeight(60)
-        invoice_layout.addRow("Street Address:", self.client_info["Street Address"])
+        column2_layout.addLayout(self.create_form_row("Contact Name:", self.client_info["Contact Name"]))
 
-        # Payment Terms and Description
+        self.client_info["Phone Number"] = QLineEdit()
+        column2_layout.addLayout(self.create_form_row("Phone Number:", self.client_info["Phone Number"]))
+
+
         self.payment_terms_dropdown = QComboBox()
         self.payment_terms_dropdown.addItems(self.db.get_all_payment_terms_codes())
-        self.payment_terms_dropdown.setCurrentText("DUE ON RECEIPT") # Default to "DUE ON RECEIPT"
-        invoice_layout.addRow("Payment Terms:", self.payment_terms_dropdown)
+        self.payment_terms_dropdown.setCurrentText("DUE ON RECEIPT")
+        column2_layout.addLayout(self.create_form_row("Payment Terms:", self.payment_terms_dropdown))
 
-        # Payment Terms Description
         self.term_description = QLabel()
         self.term_description.setWordWrap(True)
         self.term_description.setStyleSheet("color: gray; font-style: italic;")
-        invoice_layout.addRow("", self.term_description)
-
-        # Show current description and update when dropdown changes
+        column2_layout.addLayout(self.create_form_row("", self.term_description))
         self.update_term_description()
         self.payment_terms_dropdown.currentTextChanged.connect(self.update_term_description)
 
+        # Add columns to two-column layout
+        two_column_layout.addLayout(column1_layout)
+        two_column_layout.addLayout(column2_layout)
+        invoice_layout.addLayout(two_column_layout)
+
+
         invoice_details.setLayout(invoice_layout)
         layout.addWidget(invoice_details)
-
-        # Notes Section
-        notes_group = QGroupBox("Notes")
-        notes_layout = QVBoxLayout()
-        
-        self.notes_text = QTextEdit()
-        self.notes_text.setPlaceholderText("Add any notes about this invoice (e.g., special instructions, payment terms, etc.)")
-        self.notes_text.setMaximumHeight(80)
-        notes_layout.addWidget(self.notes_text)
-        
-        notes_group.setLayout(notes_layout)
-        layout.addWidget(notes_group)
 
         # Line Items Section
         layout.addWidget(self.init_line_item_section())
@@ -169,106 +181,50 @@ class CreateInvoiceWidget(QWidget):
         # Totals Section
         layout.addWidget(self.init_totals_section())
 
+        # Job and Notes Section
+        job_notes_layout = QVBoxLayout()
+        notes_group = QGroupBox("For Internal Use")
+        notes_layout = QVBoxLayout()
+        self.notes_text = QTextEdit()
+        self.notes_text.setPlaceholderText('Add any notes about this invoice. Example: "Customer will pay with Zelle"')
+        self.notes_text.setMaximumHeight(40)
+        notes_layout.addWidget(self.notes_text)
+        notes_group.setLayout(notes_layout)
+        job_notes_layout.addWidget(notes_group)
+        layout.addLayout(job_notes_layout)
+
         # Action Buttons
         button_layout = QHBoxLayout()
-        
         clear_btn = QPushButton("🗑️ Clear Form")
         clear_btn.clicked.connect(self.confirm_clear_form)
         clear_btn.setToolTip("Clear all fields and start over")
-        
+
         save_draft_btn = QPushButton("💾 Save Draft")
         save_draft_btn.clicked.connect(self.save_draft)
         save_draft_btn.setToolTip("Save your progress to continue later without creating the invoice")
-        
+
         preview_btn = QPushButton("👁️ Preview PDF")
         preview_btn.clicked.connect(self.create_pdf)
         preview_btn.setToolTip("Generate a PDF preview without saving the invoice")
-        
+
         create_btn = QPushButton("✅ Create Invoice")
         create_btn.clicked.connect(self.save_invoice)
         create_btn.setToolTip("Save the invoice and generate the final PDF")
-        
-        back_btn = QPushButton("← Back")
+
+        back_btn = QPushButton("\u2190 Back")
         back_btn.clicked.connect(self.go_back)
         back_btn.setToolTip("Return to invoice management")
-        
+
         button_layout.addWidget(clear_btn)
         button_layout.addWidget(save_draft_btn)
         button_layout.addWidget(preview_btn)
         button_layout.addWidget(create_btn)
         button_layout.addWidget(back_btn)
-        
-        layout.addLayout(button_layout)
 
-        # Add status label at the bottom
+        layout.addLayout(button_layout)
         layout.addWidget(self.status_label)
 
-    def _add_labeled_input(self, label_text, layout):
-        label = QLabel(label_text)
-        input_field = QLineEdit()
-        layout.addWidget(label)
-        layout.addWidget(input_field)
-        return input_field
 
-    def _add_labeled_textarea(self, label_text, layout):
-        label = QLabel(label_text)
-        input_field = QTextEdit()
-        layout.addWidget(label)
-        layout.addWidget(input_field)
-        return input_field
-
-    def _add_labeled_date(self, label_text, layout):
-        label = QLabel(label_text)
-        input_field = QDateEdit()
-        input_field.setCalendarPopup(True)
-        input_field.setDate(QDate.currentDate())
-        layout.addWidget(label)
-        layout.addWidget(input_field)
-        return input_field
-
-    def add_line_item(self):
-        row = self.table.rowCount()
-        self.table.insertRow(row)
-
-        desc_item = QTableWidgetItem("Item description")
-        qty_widget = QSpinBox()
-        qty_widget.setMinimum(1)
-        qty_widget.setMaximum(999999)
-        qty_widget.valueChanged.connect(self.update_total)
-
-        price_widget = QDoubleSpinBox()
-        price_widget.setDecimals(2)
-        price_widget.setMinimum(0)
-        price_widget.setMaximum(999999)
-        price_widget.valueChanged.connect(self.update_total)
-
-        total_item = QTableWidgetItem("0.00")
-        total_item.setFlags(Qt.ItemFlag.ItemIsEnabled)  # Make total read-only
-
-        self.table.setItem(row, 0, desc_item)
-        self.table.setCellWidget(row, 1, qty_widget)
-        self.table.setCellWidget(row, 2, price_widget)
-        self.table.setItem(row, 3, total_item)
-
-    def remove_selected_line_item(self):
-        selected_items = self.table.selectedItems()
-        if not selected_items:
-            QMessageBox.information(self, "No Selection", "Please select a row to remove.")
-            return
-        selected_row = selected_items[0].row()
-        self.table.removeRow(selected_row)
-        self.update_total()
-
-
-    def update_total(self):
-        total = Decimal("0.00")
-        for row in range(self.table.rowCount()):
-            qty = self.table.cellWidget(row, 1).value()
-            price = self.table.cellWidget(row, 2).value()
-            line_total = Decimal(qty) * Decimal(price)
-            self.table.item(row, 3).setText(f"{line_total:.2f}")
-            total += line_total
-        self.total_label.setText(f"Total: ${total:.2f}")
 
     def save_invoice(self):
         # Validate required fields
@@ -285,8 +241,10 @@ class CreateInvoiceWidget(QWidget):
                 'discount_type': self.discount_type.currentText(),
                 'discount_value': self.discount_value.text().strip(),
                 'discount_description': self.discount_description.text().strip(),
+                'sales_tax_amount': self.sales_tax_amount_label.text().replace('$', '').strip(),
                 'total_amount': self.total_label.text().replace('$', '').strip(),
                 'status': 'Active',  # Use Active status for new invoices
+                'job': self.job_text.toPlainText().strip(),
                 'notes': self.notes_text.toPlainText().strip()
             }
 
@@ -428,6 +386,23 @@ class CreateInvoiceWidget(QWidget):
             c.drawString(200, y, term_description)
             y -= 20
 
+        # Add job if it exists
+        job = self.job_text.toPlainText().strip()
+        if job:
+            y -= 10
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(50, y, "Job:")
+            y -= 20
+            c.setFont("Helvetica", 11)
+            # Split job into lines and draw each line
+            job_lines = job.split('\n')
+            for line in job_lines:
+                if y < 100:  # Check if we need a new page
+                    c.showPage()
+                    y = height - 50
+                c.drawString(50, y, line.strip())
+                y -= 15
+
         # Add notes if they exist
         notes = self.notes_text.toPlainText().strip()
         if notes:
@@ -516,6 +491,12 @@ class CreateInvoiceWidget(QWidget):
             c.drawString(500, y, self.discount_amount_label.text())
             y -= 20
         
+        # Sales Tax
+        if self.sales_tax_rate.text().strip():
+            c.drawString(350, y, "Sales Tax:")
+            c.drawString(500, y, self.sales_tax_amount_label.text())
+            y -= 20
+        
         c.drawString(350, y, "Final Total:")
         c.drawString(500, y, self.total_label.text())
 
@@ -560,8 +541,15 @@ class CreateInvoiceWidget(QWidget):
         self.invoice_fields["Invoice Number"].setText(invoice_number)
     
     def init_line_item_section(self):
-        group = QGroupBox("Line Items")
+        group = QGroupBox()
         layout = QVBoxLayout()
+
+        job_layout = QVBoxLayout()
+        self.job_text = QTextEdit()
+        self.job_text.setPlaceholderText('Add a Job Description. Example: "Weather damage repair"')
+        self.job_text.setMaximumHeight(40)
+        job_layout.addWidget(self.job_text)
+        layout.addLayout(job_layout)
 
         # Table for line items
         self.line_items_table = QTableWidget(0, 7)  # Added 2 columns for discount
@@ -616,7 +604,7 @@ class CreateInvoiceWidget(QWidget):
             QMessageBox.warning(self, "No Selection", "Please select a line item to remove.")
 
     def init_totals_section(self):
-        group = QGroupBox("Invoice Totals")
+        group = QGroupBox()
         layout = QFormLayout()
 
         # Subtotal (before any discounts)
@@ -644,6 +632,19 @@ class CreateInvoiceWidget(QWidget):
         # Discount amount
         self.discount_amount_label = QLabel("$0.00")
         layout.addRow("Discount Amount:", self.discount_amount_label)
+
+        # Sales Tax
+        sales_tax_layout = QHBoxLayout()
+        self.sales_tax_rate = QLineEdit()
+        self.sales_tax_rate.setPlaceholderText("0.00")
+        self.sales_tax_rate.textChanged.connect(self.update_totals)
+        
+        self.sales_tax_amount_label = QLabel("$0.00")
+        
+        sales_tax_layout.addWidget(self.sales_tax_rate)
+        sales_tax_layout.addWidget(QLabel("%"))
+        sales_tax_layout.addWidget(self.sales_tax_amount_label)
+        layout.addRow("Sales Tax:", sales_tax_layout)
 
         # Final total
         self.total_label = QLabel("$0.00")
@@ -788,8 +789,33 @@ class CreateInvoiceWidget(QWidget):
         # Update discount amount display
         self.discount_amount_label.setText(self.format_currency(discount_amount))
         
-        # Calculate and update final total
-        final_total = max(subtotal - discount_amount, Decimal("0.00"))  # Ensure total never goes negative
+        # Calculate sales tax
+        sales_tax_amount = Decimal("0.00")
+        try:
+            sales_tax_rate_text = self.sales_tax_rate.text().strip()
+            if sales_tax_rate_text:
+                sales_tax_rate = Decimal(sales_tax_rate_text)
+                if sales_tax_rate < 0:
+                    raise ValueError("Sales tax rate cannot be negative")
+                # Calculate sales tax on subtotal after discount
+                subtotal_after_discount = max(subtotal - discount_amount, Decimal("0.00"))
+                sales_tax_amount = subtotal_after_discount * (sales_tax_rate / Decimal("100"))
+        except (ValueError, decimal.InvalidOperation):
+            # If invalid, clear the field and show warning
+            if self.sales_tax_rate.text().strip():
+                QMessageBox.warning(
+                    self,
+                    "Invalid Sales Tax Rate",
+                    "Please enter a valid sales tax rate.\nExample: 8.5 for 8.5%"
+                )
+                self.sales_tax_rate.setText("")
+        
+        # Update sales tax amount display
+        self.sales_tax_amount_label.setText(self.format_currency(sales_tax_amount))
+        
+        # Calculate and update final total (subtotal - discount + sales tax)
+        subtotal_after_discount = max(subtotal - discount_amount, Decimal("0.00"))
+        final_total = subtotal_after_discount + sales_tax_amount
         self.total_label.setText(self.format_currency(final_total))
 
     def add_line_item(self):
@@ -802,6 +828,7 @@ class CreateInvoiceWidget(QWidget):
         # Add quantity spinbox
         qty_spin = QSpinBox()
         qty_spin.setMinimum(1)
+        qty_spin.setMaximum(999999)
         qty_spin.valueChanged.connect(self.update_totals)
         self.line_items_table.setCellWidget(row, 1, qty_spin)
         
@@ -901,8 +928,10 @@ class CreateInvoiceWidget(QWidget):
                 'phone_number': self.client_info["Phone Number"].text(),
                 'street_address': self.client_info["Street Address"].toPlainText(),
                 'customer_id': self.selected_client_id,
+                'job': self.job_text.toPlainText().strip(),
                 'notes': self.notes_text.toPlainText().strip(),
                 'payment_terms': self.payment_terms_dropdown.currentText(),
+                'sales_tax_rate': self.sales_tax_rate.text().strip(),
                 'line_items': []
             }
 
@@ -966,8 +995,10 @@ class CreateInvoiceWidget(QWidget):
                 'phone_number': self.client_info["Phone Number"].text(),
                 'street_address': self.client_info["Street Address"].toPlainText(),
                 'customer_id': self.selected_client_id,
+                'job': self.job_text.toPlainText().strip(),
                 'notes': self.notes_text.toPlainText().strip(),
                 'payment_terms': self.payment_terms_dropdown.currentText(),
+                'sales_tax_rate': self.sales_tax_rate.text().strip(),
                 'line_items': []
             }
 
@@ -1110,8 +1141,10 @@ class CreateInvoiceWidget(QWidget):
             "Business Name": self.client_info["Business Name"].text(),
             "Contact Email": self.client_info["Contact Email"].text(),
             "Street Address": self.client_info["Street Address"].toPlainText(),
+            "Job": self.job_text.toPlainText(),
             "Notes": self.notes_text.toPlainText(),
             "Payment Terms": self.payment_terms_dropdown.currentText(),
+            "Sales Tax Rate": self.sales_tax_rate.text(),
             "Line Items": []
         }
 
@@ -1142,8 +1175,10 @@ class CreateInvoiceWidget(QWidget):
         self.client_info["Business Name"].setText(data["Business Name"])
         self.client_info["Contact Email"].setText(data["Contact Email"])
         self.client_info["Street Address"].setPlainText(data["Street Address"])
+        self.job_text.setPlainText(data.get("Job", ""))
         self.notes_text.setPlainText(data.get("Notes", ""))
         self.payment_terms_dropdown.setCurrentText(data.get("Payment Terms", "NET30"))
+        self.sales_tax_rate.setText(data.get("Sales Tax Rate", ""))
 
         # Clear existing line items
         self.line_items_table.setRowCount(0)
@@ -1159,6 +1194,7 @@ class CreateInvoiceWidget(QWidget):
             # Quantity
             qty_spin = QSpinBox()
             qty_spin.setMinimum(1)
+            qty_spin.setMaximum(999999)
             qty_spin.setValue(item["Quantity"])
             qty_spin.valueChanged.connect(self.update_totals)
             self.line_items_table.setCellWidget(row, 1, qty_spin)
@@ -1269,7 +1305,8 @@ class CreateInvoiceWidget(QWidget):
             elif isinstance(widget, QLineEdit):
                 widget.setText("")
 
-        # Clear notes
+        # Clear job and notes
+        self.job_text.clear()
         self.notes_text.clear()
 
         # Reset payment terms
@@ -1286,6 +1323,8 @@ class CreateInvoiceWidget(QWidget):
         self.discount_value.clear()
         self.discount_description.clear()
         self.discount_amount_label.setText(self.format_currency(0))
+        self.sales_tax_rate.clear()
+        self.sales_tax_amount_label.setText(self.format_currency(0))
         self.total_label.setText(self.format_currency(0))
 
         # Generate new invoice number

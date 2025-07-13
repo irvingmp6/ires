@@ -88,6 +88,24 @@ class ViewInvoiceWidget(QWidget):
         save_notes_btn.clicked.connect(self.save_notes)
         self.layout.addWidget(save_notes_btn)
 
+        # Job section
+        job_label = QLabel("Job:")
+        job_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.layout.addWidget(job_label)
+        
+        self.job_text = QTextEdit()
+        self.job_text.setPlaceholderText("Enter the job description or context for this invoice")
+        self.job_text.setMaximumHeight(80)
+        # Add Ctrl+Enter shortcut to save job
+        save_job_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self.job_text)
+        save_job_shortcut.activated.connect(self.save_job)
+        self.layout.addWidget(self.job_text)
+        
+        # Save job button
+        save_job_btn = QPushButton("💾 Save Job")
+        save_job_btn.clicked.connect(self.save_job)
+        self.layout.addWidget(save_job_btn)
+
         # Line item table
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["Description", "Qty", "Unit Price", "Total"])
@@ -134,6 +152,9 @@ class ViewInvoiceWidget(QWidget):
 
         # Display notes
         self.notes_text.setText(invoice.get('notes', ''))
+        
+        # Display job
+        self.job_text.setText(invoice.get('job', ''))
 
         self.table.setRowCount(0)
         for item in invoice["Line Items"]:
@@ -204,6 +225,23 @@ class ViewInvoiceWidget(QWidget):
             c.drawString(40, y, f"{key}: {field_mapping[key]}")
             y -= 15
 
+        # Add job if it exists
+        job = self.invoice_data.get("job", "")
+        if job.strip():
+            y -= 10
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(40, y, "Job:")
+            y -= 15
+            c.setFont("Helvetica", 10)
+            # Split job into lines and draw each line
+            job_lines = job.split('\n')
+            for line in job_lines:
+                if y < 100:  # Check if we need a new page
+                    c.showPage()
+                    y = height - 40
+                c.drawString(40, y, line.strip())
+                y -= 15
+
         # Add notes if they exist
         notes = self.invoice_data.get("notes", "")
         if notes.strip():
@@ -260,4 +298,19 @@ class ViewInvoiceWidget(QWidget):
             self.db.update_invoice_notes(invoice_number, notes)
             QMessageBox.information(self, "Success", "Notes saved successfully!")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save notes: {str(e)}") 
+            QMessageBox.critical(self, "Error", f"Failed to save notes: {str(e)}")
+
+    def save_job(self):
+        """Save the job for the current invoice."""
+        if not self.invoice_data:
+            QMessageBox.warning(self, "No Invoice", "No invoice is currently loaded.")
+            return
+
+        job = self.job_text.toPlainText()
+        invoice_number = self.invoice_data["invoice_number"]
+        
+        try:
+            self.db.update_invoice_job(invoice_number, job)
+            QMessageBox.information(self, "Success", "Job saved successfully!")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save job: {str(e)}") 

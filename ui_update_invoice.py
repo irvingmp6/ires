@@ -97,6 +97,24 @@ class UpdateInvoiceWidget(QWidget):
         save_notes_btn.clicked.connect(self.save_notes)
         self.layout.addWidget(save_notes_btn)
 
+        # Job section
+        job_label = QLabel("Job:")
+        job_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.layout.addWidget(job_label)
+        
+        self.job_text = QTextEdit()
+        self.job_text.setPlaceholderText("Enter the job description or context for this invoice")
+        self.job_text.setMaximumHeight(80)
+        # Add Ctrl+Enter shortcut to save job
+        save_job_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self.job_text)
+        save_job_shortcut.activated.connect(self.save_job)
+        self.layout.addWidget(self.job_text)
+        
+        # Save job button
+        save_job_btn = QPushButton("💾 Save Job")
+        save_job_btn.clicked.connect(self.save_job)
+        self.layout.addWidget(save_job_btn)
+
         # Line item table
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["Description", "Quantity", "Unit Price", "Total"])
@@ -252,6 +270,45 @@ class UpdateInvoiceWidget(QWidget):
         c.drawString(40, y, self.invoice_data['Contact Email'])
         y -= 30
 
+        # Add job if it exists
+        job = self.invoice_data.get("job", "")
+        if job.strip():
+            y -= 10
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(40, y, "Job:")
+            y -= 20
+            c.setFont("Helvetica", 11)
+            # Split job into lines and draw each line
+            job_lines = job.split('\n')
+            for line in job_lines:
+                if y < 100:  # Check if we need a new page
+                    add_page_number()
+                    c.showPage()
+                    page_number += 1
+                    y = height - 40
+
+                    # Add watermark on new page if voided
+                    if self.invoice_data['Status'] == "Void":
+                        c.saveState()
+                        c.setFont("Helvetica-Bold", 80)
+                        c.setFillColor(colors.red, alpha=0.3)
+                        c.rotate(45)
+                        c.drawString(150, 100, "VOID")
+                        c.restoreState()
+
+                    # Redraw headers on new page
+                    c.setFont("Helvetica-Bold", 12)
+                    c.drawString(40, y, "Description")
+                    c.drawString(300, y, "Quantity")
+                    c.drawString(380, y, "Unit Price")
+                    c.drawString(460, y, "Total")
+                    y -= 15
+                    draw_line()
+                    c.setFont("Helvetica", 11)
+                
+                c.drawString(40, y, line.strip())
+                y -= 20
+
         # Add notes if they exist
         notes = self.invoice_data.get("notes", "")
         if notes.strip():
@@ -373,6 +430,9 @@ class UpdateInvoiceWidget(QWidget):
 
         # Display notes
         self.notes_text.setText(invoice_data.get('notes', ''))
+        
+        # Display job
+        self.job_text.setText(invoice_data.get('job', ''))
 
         # Display line items
         self.table.setRowCount(0)
@@ -400,4 +460,21 @@ class UpdateInvoiceWidget(QWidget):
             QMessageBox.information(self, "Success", "Notes saved successfully!")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save notes: {str(e)}")
+
+    def save_job(self):
+        """Save the job for the current invoice."""
+        if not self.invoice_data:
+            QMessageBox.warning(self, "No Invoice", "Please find an invoice first.")
+            return
+
+        job = self.job_text.toPlainText()
+        invoice_number = self.invoice_data["invoice_number"]
+        
+        try:
+            self.db.update_invoice_job(invoice_number, job)
+            # Update our local data to reflect the change
+            self.invoice_data["job"] = job
+            QMessageBox.information(self, "Success", "Job saved successfully!")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save job: {str(e)}")
 

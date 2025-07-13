@@ -41,6 +41,7 @@ class Database:
             discount_type TEXT CHECK(discount_type IN ('NONE', 'PERCENTAGE', 'FIXED_AMOUNT')),
             discount_value TEXT,
             discount_description TEXT,
+            sales_tax_amount TEXT,
             total_amount TEXT,
             status TEXT DEFAULT 'Active' CHECK(
                 status IN (
@@ -50,6 +51,7 @@ class Database:
                     'Paid - Fully Reconciled'
                 )
             ),
+            job TEXT,
             notes TEXT,
             FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT
         )""")
@@ -220,8 +222,8 @@ class Database:
                 INSERT INTO invoices (
                     invoice_number, date, customer_id, 
                     subtotal_amount, discount_type, discount_value,
-                    discount_description, total_amount, status, notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    discount_description, sales_tax_amount, total_amount, status, job, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 invoice_data['invoice_number'],
                 invoice_data['date'],
@@ -230,8 +232,10 @@ class Database:
                 invoice_data['discount_type'],
                 invoice_data['discount_value'],
                 invoice_data['discount_description'],
+                invoice_data.get('sales_tax_amount', '0.00'),  # Include sales tax field
                 invoice_data['total_amount'],
                 invoice_data.get('status', 'Active'),  # Use provided status or default to 'Active'
+                invoice_data.get('job', ''),  # Include job field
                 invoice_data.get('notes', '')  # Include notes field
             ))
             
@@ -386,11 +390,53 @@ class Database:
         """, (notes, invoice_number))
         self.conn.commit()
 
+    def update_invoice_job(self, invoice_number, job):
+        """Update the job for an invoice."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE invoices 
+            SET job = ? 
+            WHERE invoice_number = ?
+        """, (job, invoice_number))
+        self.conn.commit()
+
+    def update_invoice_sales_tax(self, invoice_number, sales_tax_amount):
+        """Update the sales tax for an invoice."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE invoices 
+            SET sales_tax_amount = ? 
+            WHERE invoice_number = ?
+        """, (sales_tax_amount, invoice_number))
+        self.conn.commit()
+
     def get_invoice_notes(self, invoice_number):
         """Get the notes for an invoice."""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT notes 
+            FROM invoices 
+            WHERE invoice_number = ?
+        """, (invoice_number,))
+        result = cursor.fetchone()
+        return result[0] if result else ""
+
+    def get_invoice_sales_tax(self, invoice_number):
+        """Get the sales tax for an invoice."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT sales_tax_amount 
+            FROM invoices 
+            WHERE invoice_number = ?
+        """, (invoice_number,))
+        result = cursor.fetchone()
+        return result[0] if result else "0.00"
+
+    def get_invoice_job(self, invoice_number):
+        """Get the job for an invoice."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT job 
             FROM invoices 
             WHERE invoice_number = ?
         """, (invoice_number,))
