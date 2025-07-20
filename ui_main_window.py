@@ -17,7 +17,7 @@ from ui_find_existing_clients import FindExistingClientWidget
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("IReS - Designed by Studio i Martinez")
+        self.setWindowTitle("IReS")
         self.setMinimumSize(800, 600)  # Set minimum size
         
         self.settings = self.load_settings()
