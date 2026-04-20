@@ -1,7 +1,5 @@
 # 🧾 IReS — Invoice and Reconciliation System
 
-**Built by Opulatec**
-
 IReS is a modern desktop application that allows small businesses to:
 - Create and manage invoices
 - Automatically generate printable PDFs
