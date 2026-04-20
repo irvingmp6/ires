@@ -95,17 +95,4 @@ This will generate an executable you can distribute or add to the desktop with a
 
 ## 🤝 License
 
-MIT License.  
-Built with care by [Opulatec](https://opulatec.com).
-
----
-
-## 📧 Contact
-
-Have questions or need a custom feature?  
-📬 Email: hello@opulatec.com  
-🌐 Web: [opulatec.com](https://opulatec.com)
-
----
-
-> “You’ve built the foundation. We’ll tech it from here.” – Opulatec
+MIT License. 
