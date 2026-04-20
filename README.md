@@ -28,7 +28,7 @@ Designed with usability in mind, IReS uses a clean, professional UI built with *
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/opulatec/ires.git
+git clone https://github.com/irvingmp6/ires.git
 cd ires
 ```
 
